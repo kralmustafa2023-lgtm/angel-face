@@ -804,3 +804,375 @@
     setupSecretNotes();
 
 })();
+
+/* ============================================================
+   FIREBASE REALTIME CHAT ENGINE
+   WhatsApp-Style: Text + Photo/Video + Voice Notes
+   ============================================================ */
+
+(function () {
+    'use strict';
+
+    // ──────────────────────────────────────────────────────────
+    // FIREBASE CONFIG — Buraya kendi Firebase config'ini yapıştır!
+    // Firebase Console > Project Settings > Your Apps > Web App > firebaseConfig
+    // ──────────────────────────────────────────────────────────
+    const FIREBASE_CONFIG = {
+        apiKey:            "BURAYA_API_KEY",
+        authDomain:        "BURAYA_AUTH_DOMAIN",
+        databaseURL:       "BURAYA_DATABASE_URL",
+        projectId:         "BURAYA_PROJECT_ID",
+        storageBucket:     "BURAYA_STORAGE_BUCKET",
+        messagingSenderId: "BURAYA_MESSAGING_SENDER_ID",
+        appId:             "BURAYA_APP_ID"
+    };
+
+    // Hangi cihaz kim? (İki kullanıcıyı ayırt etmek için)
+    // İlk açılışta kullanıcı adı sor ya da basit bir yöntem:
+    // URL'e ?user=irem veya ?user=ben ile girilince o kullanıcı olur.
+    function getMyName() {
+        const params = new URLSearchParams(window.location.search);
+        const u = params.get('user');
+        if (u === 'irem') return 'irem';
+        return 'ben'; // varsayılan: siteyi yapan kişi
+    }
+
+    const MY_NAME = getMyName();
+    const CHAT_PATH = 'angelface_chat/messages';
+
+    // Firebase başlatılıp başlatılmadığını kontrol et
+    let db, storage, firebaseReady = false;
+
+    function initFirebase() {
+        try {
+            if (FIREBASE_CONFIG.apiKey === 'BURAYA_API_KEY') {
+                console.warn('⚠️ Firebase config henüz girilmemiş. Lütfen script.js içine kendi config bilgilerini yapıştır.');
+                document.getElementById('chat-status').textContent = 'bağlantı ayarlanıyor...';
+                document.getElementById('chat-status').style.color = '#facc15';
+                return false;
+            }
+            if (!firebase.apps.length) {
+                firebase.initializeApp(FIREBASE_CONFIG);
+            }
+            db = firebase.database();
+            storage = firebase.storage();
+            firebaseReady = true;
+            return true;
+        } catch (e) {
+            console.error('Firebase başlatma hatası:', e);
+            return false;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // DOM REFERENCES
+    // ──────────────────────────────────────────────────────────
+    const fab          = document.getElementById('chat-fab');
+    const modal        = document.getElementById('chat-modal');
+    const backdrop     = document.getElementById('chat-backdrop');
+    const closeBtn     = document.getElementById('chat-close');
+    const messagesEl   = document.getElementById('chat-messages');
+    const textInput    = document.getElementById('chat-text-input');
+    const sendBtn      = document.getElementById('chat-send-btn');
+    const fileInput    = document.getElementById('chat-file-input');
+    const voiceBtn     = document.getElementById('chat-voice-btn');
+    const recBar       = document.getElementById('chat-recording-bar');
+    const statusEl     = document.getElementById('chat-status');
+    const fabBadge     = document.getElementById('chat-fab-badge');
+
+    let isOpen = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let unreadCount = 0;
+    let lastSeenTs = Date.now();
+
+    // ──────────────────────────────────────────────────────────
+    // OPEN / CLOSE CHAT
+    // ──────────────────────────────────────────────────────────
+    function openChat() {
+        isOpen = true;
+        modal.classList.add('is-active');
+        backdrop.classList.add('is-active');
+        unreadCount = 0;
+        fabBadge.style.display = 'none';
+        lastSeenTs = Date.now();
+        setTimeout(() => scrollToBottom(), 100);
+    }
+
+    function closeChat() {
+        isOpen = false;
+        modal.classList.remove('is-active');
+        backdrop.classList.remove('is-active');
+        lastSeenTs = Date.now();
+    }
+
+    fab.addEventListener('click', () => isOpen ? closeChat() : openChat());
+    closeBtn.addEventListener('click', closeChat);
+    backdrop.addEventListener('click', closeChat);
+
+    // Enter ile gönder
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendTextMessage();
+        }
+    });
+    sendBtn.addEventListener('click', sendTextMessage);
+
+    // ──────────────────────────────────────────────────────────
+    // FORMAT TIME
+    // ──────────────────────────────────────────────────────────
+    function formatTime(ts) {
+        const d = new Date(ts);
+        return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+    }
+
+    function formatDateSep(ts) {
+        const d = new Date(ts);
+        const today = new Date();
+        if (d.toDateString() === today.toDateString()) return 'Bugün';
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        if (d.toDateString() === yesterday.toDateString()) return 'Dün';
+        return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // SCROLL TO BOTTOM
+    // ──────────────────────────────────────────────────────────
+    function scrollToBottom() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RENDER A MESSAGE BUBBLE
+    // ──────────────────────────────────────────────────────────
+    let lastDateStr = '';
+
+    function renderMessage(msg, key) {
+        const isMe = msg.sender === MY_NAME;
+        const bubbleClass = isMe ? 'chat-bubble--out' : 'chat-bubble--in';
+
+        // Date separator
+        const dateStr = formatDateSep(msg.ts);
+        if (dateStr !== lastDateStr) {
+            lastDateStr = dateStr;
+            const sep = document.createElement('div');
+            sep.className = 'chat-date-sep';
+            sep.textContent = dateStr;
+            messagesEl.appendChild(sep);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${bubbleClass}`;
+        bubble.dataset.key = key;
+
+        if (msg.type === 'text') {
+            bubble.innerHTML = `${escapeHtml(msg.text)}<span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+        } else if (msg.type === 'image') {
+            bubble.innerHTML = `<img src="${msg.url}" class="chat-bubble__media" alt="fotoğraf" loading="lazy"><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+            bubble.querySelector('img').addEventListener('click', () => window.open(msg.url, '_blank'));
+        } else if (msg.type === 'video') {
+            bubble.innerHTML = `<video src="${msg.url}" class="chat-bubble__media" controls playsinline></video><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+        } else if (msg.type === 'voice') {
+            bubble.innerHTML = `<audio src="${msg.url}" class="chat-bubble__audio" controls></audio><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+        }
+
+        messagesEl.appendChild(bubble);
+
+        // Unread badge when modal is closed
+        if (!isOpen && !isMe) {
+            unreadCount++;
+            fabBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            fabBadge.style.display = 'flex';
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // LISTEN FOR MESSAGES (Realtime)
+    // ──────────────────────────────────────────────────────────
+    function startListening() {
+        const ref = db.ref(CHAT_PATH).orderByChild('ts').limitToLast(200);
+
+        // Load all existing messages first
+        ref.once('value', (snap) => {
+            messagesEl.innerHTML = '<div class="chat-welcome"><div class="chat-welcome__icon">💌</div><p>Sana özel şifreli mesajlaşma kanalı.</p><p>Sadece ikimiz için... ❤️</p></div>';
+            lastDateStr = '';
+            snap.forEach((child) => {
+                renderMessage(child.val(), child.key);
+            });
+            scrollToBottom();
+            statusEl.textContent = 'çevrimiçi ✓';
+            statusEl.style.color = '#4ade80';
+        });
+
+        // Then listen for new ones
+        ref.on('child_added', (snap) => {
+            // Skip if it was already rendered in once()
+            const existing = messagesEl.querySelector(`[data-key="${snap.key}"]`);
+            if (existing) return;
+            renderMessage(snap.val(), snap.key);
+            if (isOpen) scrollToBottom();
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // SEND TEXT
+    // ──────────────────────────────────────────────────────────
+    function sendTextMessage() {
+        if (!firebaseReady) {
+            alert('Firebase henüz bağlı değil! Lütfen script.js\'e config bilgilerini gir.');
+            return;
+        }
+        const text = textInput.value.trim();
+        if (!text) return;
+        textInput.value = '';
+
+        db.ref(CHAT_PATH).push({
+            type: 'text',
+            text: text,
+            sender: MY_NAME,
+            ts: Date.now()
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // SEND FILE (Image / Video)
+    // ──────────────────────────────────────────────────────────
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        fileInput.value = '';
+
+        if (!firebaseReady) {
+            alert('Firebase henüz bağlı değil!');
+            return;
+        }
+
+        // Show uploading indicator
+        const loadBubble = document.createElement('div');
+        loadBubble.className = 'chat-bubble chat-bubble--out chat-bubble--uploading';
+        loadBubble.textContent = '⏳ Yükleniyor...';
+        messagesEl.appendChild(loadBubble);
+        scrollToBottom();
+
+        try {
+            const ext = file.name.split('.').pop();
+            const fileName = `angelface_media/${Date.now()}_${MY_NAME}.${ext}`;
+            const ref = storage.ref(fileName);
+            await ref.put(file);
+            const url = await ref.getDownloadURL();
+
+            loadBubble.remove();
+
+            const isVideo = file.type.startsWith('video/');
+            await db.ref(CHAT_PATH).push({
+                type: isVideo ? 'video' : 'image',
+                url: url,
+                sender: MY_NAME,
+                ts: Date.now()
+            });
+        } catch (err) {
+            loadBubble.textContent = '❌ Yükleme başarısız.';
+            console.error('Dosya yükleme hatası:', err);
+        }
+    });
+
+    // ──────────────────────────────────────────────────────────
+    // VOICE NOTE (MediaRecorder API)
+    // ──────────────────────────────────────────────────────────
+    voiceBtn.addEventListener('click', async () => {
+        if (!firebaseReady) {
+            alert('Firebase henüz bağlı değil!');
+            return;
+        }
+
+        if (isRecording) {
+            // STOP
+            mediaRecorder.stop();
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
+
+            mediaRecorder.addEventListener('dataavailable', (e) => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            });
+
+            mediaRecorder.addEventListener('stop', async () => {
+                isRecording = false;
+                voiceBtn.classList.remove('is-recording');
+                voiceBtn.querySelector('.voice-icon').style.display = '';
+                voiceBtn.querySelector('.stop-icon').style.display = 'none';
+                recBar.classList.remove('is-active');
+                stream.getTracks().forEach(t => t.stop());
+
+                if (audioChunks.length === 0) return;
+
+                const blob = new Blob(audioChunks, { type: getSupportedMimeType() });
+                const ext = getSupportedMimeType().includes('webm') ? 'webm' : 'ogg';
+                const fileName = `angelface_voice/${Date.now()}_${MY_NAME}.${ext}`;
+
+                const loadBubble = document.createElement('div');
+                loadBubble.className = 'chat-bubble chat-bubble--out chat-bubble--uploading';
+                loadBubble.textContent = '⏳ Sesli mesaj yükleniyor...';
+                messagesEl.appendChild(loadBubble);
+                scrollToBottom();
+
+                try {
+                    const ref = storage.ref(fileName);
+                    await ref.put(blob);
+                    const url = await ref.getDownloadURL();
+                    loadBubble.remove();
+                    await db.ref(CHAT_PATH).push({
+                        type: 'voice',
+                        url: url,
+                        sender: MY_NAME,
+                        ts: Date.now()
+                    });
+                } catch (err) {
+                    loadBubble.textContent = '❌ Sesli mesaj gönderilemedi.';
+                    console.error('Ses yükleme hatası:', err);
+                }
+            });
+
+            mediaRecorder.start();
+            isRecording = true;
+            voiceBtn.classList.add('is-recording');
+            voiceBtn.querySelector('.voice-icon').style.display = 'none';
+            voiceBtn.querySelector('.stop-icon').style.display = '';
+            recBar.classList.add('is-active');
+
+        } catch (err) {
+            alert('Mikrofon erişimi reddedildi. Lütfen tarayıcı ayarlarından izin ver.');
+            console.error('Mikrofon hatası:', err);
+        }
+    });
+
+    function getSupportedMimeType() {
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+        return types.find(t => MediaRecorder.isTypeSupported(t)) || 'audio/webm';
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // INIT
+    // ──────────────────────────────────────────────────────────
+    const ready = initFirebase();
+    if (ready) {
+        startListening();
+    }
+
+})();
