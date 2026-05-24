@@ -1100,6 +1100,170 @@ window.bootChatEngine = function () {
     }
 
     // ──────────────────────────────────────────────────────────
+    // IMAGE COMPRESSION HELPER
+    // ──────────────────────────────────────────────────────────
+    async function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.7) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width *= maxHeight / height;
+                            height = maxHeight;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob((blob) => {
+                        resolve(blob || file);
+                    }, 'image/jpeg', quality);
+                };
+            };
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // USER DYNAMIC PROFILES
+    // ──────────────────────────────────────────────────────────
+    const PROFILE_PATH = 'angelface_chat/profiles';
+    const TARGET_NAME = MY_NAME === 'irem' ? 'ben' : 'irem';
+
+    const chatHeaderAvatar = document.getElementById('chat-header-avatar');
+    const chatHeaderName   = document.querySelector('.chat-modal__header-name');
+    
+    const profileModal     = document.getElementById('profile-modal');
+    const profileClose     = document.getElementById('profile-close');
+    const profileEditBtn   = document.getElementById('chat-profile-edit-btn');
+    const profileSaveBtn   = document.getElementById('profile-save-btn');
+    const profileNameInput = document.getElementById('profile-display-name');
+    const profileFile      = document.getElementById('profile-avatar-file');
+    const profilePreview   = document.getElementById('profile-avatar-preview');
+
+    let myProfileData = { displayName: MY_NAME === 'irem' ? 'İrem' : 'Canım', avatarUrl: '' };
+    let tempAvatarBlob = null;
+
+    function setupProfiles() {
+        // Listen to our own profile
+        db.ref(`${PROFILE_PATH}/${MY_NAME}`).on('value', snap => {
+            if (snap.exists()) {
+                myProfileData = snap.val();
+            } else {
+                db.ref(`${PROFILE_PATH}/${MY_NAME}`).set(myProfileData);
+            }
+        });
+
+        // Listen to other person's profile to update header
+        db.ref(`${PROFILE_PATH}/${TARGET_NAME}`).on('value', snap => {
+            if (snap.exists()) {
+                const data = snap.val();
+                if (chatHeaderName && data.displayName) {
+                    chatHeaderName.textContent = `${data.displayName} 💜`;
+                }
+                if (chatHeaderAvatar) {
+                    if (data.avatarUrl) {
+                        chatHeaderAvatar.innerHTML = `<img src="${data.avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+                    } else {
+                        chatHeaderAvatar.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                    }
+                }
+            }
+        });
+
+        // Open Profile Edit Modal
+        if (profileEditBtn) {
+            profileEditBtn.addEventListener('click', () => {
+                profileNameInput.value = myProfileData.displayName || '';
+                if (myProfileData.avatarUrl) {
+                    profilePreview.innerHTML = `<img src="${myProfileData.avatarUrl}">`;
+                } else {
+                    profilePreview.innerHTML = '❤️';
+                }
+                tempAvatarBlob = null;
+                profileModal.classList.add('is-active');
+            });
+        }
+
+        // Close Profile Modal
+        if (profileClose) {
+            profileClose.addEventListener('click', () => {
+                profileModal.classList.remove('is-active');
+            });
+        }
+
+        // Profile Avatar file selector
+        if (profileFile) {
+            profileFile.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const compressed = await compressImage(file, 200, 200, 0.85);
+                tempAvatarBlob = compressed;
+                
+                const reader = new FileReader();
+                reader.readAsDataURL(compressed);
+                reader.onload = (event) => {
+                    profilePreview.innerHTML = `<img src="${event.target.result}">`;
+                };
+            });
+        }
+
+        // Save Profile
+        if (profileSaveBtn) {
+            profileSaveBtn.addEventListener('click', async () => {
+                const newName = profileNameInput.value.trim();
+                if (!newName) {
+                    alert('Lütfen bir isim girin.');
+                    return;
+                }
+
+                profileSaveBtn.disabled = true;
+                profileSaveBtn.textContent = 'Kaydediliyor...';
+
+                try {
+                    let avatarUrl = myProfileData.avatarUrl || '';
+                    if (tempAvatarBlob) {
+                        const avatarName = `angelface_profiles/${MY_NAME}_avatar_${Date.now()}.jpg`;
+                        const ref = storage.ref(avatarName);
+                        await ref.put(tempAvatarBlob);
+                        avatarUrl = await ref.getDownloadURL();
+                    }
+
+                    await db.ref(`${PROFILE_PATH}/${MY_NAME}`).set({
+                        displayName: newName,
+                        avatarUrl: avatarUrl
+                    });
+
+                    profileModal.classList.remove('is-active');
+                } catch (err) {
+                    console.error('Profil kaydetme hatası:', err);
+                    alert('Profil kaydedilemedi.');
+                } finally {
+                    profileSaveBtn.disabled = false;
+                    profileSaveBtn.textContent = 'Değişiklikleri Kaydet';
+                }
+            });
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
     // SEND FILE (Image / Video)
     // ──────────────────────────────────────────────────────────
     fileInput.addEventListener('change', async (e) => {
@@ -1112,31 +1276,58 @@ window.bootChatEngine = function () {
             return;
         }
 
+        const isVideo = file.type.startsWith('video/');
+        
+        // Video size limit (15MB)
+        if (isVideo && file.size > 15 * 1024 * 1024) {
+            alert('Video çok büyük! Lütfen 15MB\'tan küçük bir video seç.');
+            return;
+        }
+
         // Show uploading indicator
         const loadBubble = document.createElement('div');
         loadBubble.className = 'chat-bubble chat-bubble--out chat-bubble--uploading';
-        loadBubble.textContent = '⏳ Yükleniyor...';
+        loadBubble.textContent = '⏳ Yükleniyor: %0';
         messagesEl.appendChild(loadBubble);
         scrollToBottom();
 
         try {
-            const ext = file.name.split('.').pop();
+            let fileToUpload = file;
+            let ext = file.name.split('.').pop();
+            
+            // Image compression
+            if (file.type.startsWith('image/')) {
+                loadBubble.textContent = '⚡ Fotoğraf optimize ediliyor...';
+                fileToUpload = await compressImage(file, 1200, 1200, 0.7);
+                ext = 'jpg';
+            }
+
             const fileName = `angelface_media/${Date.now()}_${MY_NAME}.${ext}`;
             const ref = storage.ref(fileName);
-            await ref.put(file);
-            const url = await ref.getDownloadURL();
+            const uploadTask = ref.put(fileToUpload);
 
-            loadBubble.remove();
-
-            const isVideo = file.type.startsWith('video/');
-            await db.ref(CHAT_PATH).push({
-                type: isVideo ? 'video' : 'image',
-                url: url,
-                sender: MY_NAME,
-                ts: Date.now()
-            });
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                    loadBubble.textContent = `⏳ Yükleniyor: %${progress}`;
+                }, 
+                (error) => {
+                    loadBubble.textContent = '❌ Yükleme başarısız.';
+                    console.error('Yükleme hatası:', error);
+                }, 
+                async () => {
+                    const url = await ref.getDownloadURL();
+                    loadBubble.remove();
+                    await db.ref(CHAT_PATH).push({
+                        type: isVideo ? 'video' : 'image',
+                        url: url,
+                        sender: MY_NAME,
+                        ts: Date.now()
+                    });
+                }
+            );
         } catch (err) {
-            loadBubble.textContent = '❌ Yükleme başarısız.';
+            loadBubble.textContent = '❌ Optimize edilemedi veya yüklenemedi.';
             console.error('Dosya yükleme hatası:', err);
         }
     });
@@ -1151,15 +1342,19 @@ window.bootChatEngine = function () {
         }
 
         if (isRecording) {
-            // STOP
-            mediaRecorder.stop();
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
             return;
         }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioChunks = [];
-            mediaRecorder = new MediaRecorder(stream, { mimeType: getSupportedMimeType() });
+            const mimeType = getSupportedMimeType();
+            
+            const options = mimeType ? { mimeType } : {};
+            mediaRecorder = new MediaRecorder(stream, options);
 
             mediaRecorder.addEventListener('dataavailable', (e) => {
                 if (e.data.size > 0) audioChunks.push(e.data);
@@ -1168,34 +1363,48 @@ window.bootChatEngine = function () {
             mediaRecorder.addEventListener('stop', async () => {
                 isRecording = false;
                 voiceBtn.classList.remove('is-recording');
-                voiceBtn.querySelector('.voice-icon').style.display = '';
-                voiceBtn.querySelector('.stop-icon').style.display = 'none';
+                if (voiceBtn.querySelector('.voice-icon')) voiceBtn.querySelector('.voice-icon').style.display = '';
+                if (voiceBtn.querySelector('.stop-icon')) voiceBtn.querySelector('.voice-icon').style.display = 'none';
                 recBar.classList.remove('is-active');
                 stream.getTracks().forEach(t => t.stop());
 
                 if (audioChunks.length === 0) return;
 
-                const blob = new Blob(audioChunks, { type: getSupportedMimeType() });
-                const ext = getSupportedMimeType().includes('webm') ? 'webm' : 'ogg';
+                const blobOptions = mimeType ? { type: mimeType } : {};
+                const blob = new Blob(audioChunks, blobOptions);
+                const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('webm') ? 'webm' : 'ogg';
                 const fileName = `angelface_voice/${Date.now()}_${MY_NAME}.${ext}`;
 
                 const loadBubble = document.createElement('div');
                 loadBubble.className = 'chat-bubble chat-bubble--out chat-bubble--uploading';
-                loadBubble.textContent = '⏳ Sesli mesaj yükleniyor...';
+                loadBubble.textContent = '⏳ Sesli mesaj yükleniyor: %0';
                 messagesEl.appendChild(loadBubble);
                 scrollToBottom();
 
                 try {
                     const ref = storage.ref(fileName);
-                    await ref.put(blob);
-                    const url = await ref.getDownloadURL();
-                    loadBubble.remove();
-                    await db.ref(CHAT_PATH).push({
-                        type: 'voice',
-                        url: url,
-                        sender: MY_NAME,
-                        ts: Date.now()
-                    });
+                    const uploadTask = ref.put(blob);
+                    
+                    uploadTask.on('state_changed', 
+                        (snapshot) => {
+                            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                            loadBubble.textContent = `⏳ Sesli mesaj yükleniyor: %${progress}`;
+                        }, 
+                        (error) => {
+                            loadBubble.textContent = '❌ Sesli mesaj gönderilemedi.';
+                            console.error('Ses yükleme hatası:', error);
+                        }, 
+                        async () => {
+                            const url = await ref.getDownloadURL();
+                            loadBubble.remove();
+                            await db.ref(CHAT_PATH).push({
+                                type: 'voice',
+                                url: url,
+                                sender: MY_NAME,
+                                ts: Date.now()
+                            });
+                        }
+                    );
                 } catch (err) {
                     loadBubble.textContent = '❌ Sesli mesaj gönderilemedi.';
                     console.error('Ses yükleme hatası:', err);
@@ -1205,8 +1414,8 @@ window.bootChatEngine = function () {
             mediaRecorder.start();
             isRecording = true;
             voiceBtn.classList.add('is-recording');
-            voiceBtn.querySelector('.voice-icon').style.display = 'none';
-            voiceBtn.querySelector('.stop-icon').style.display = '';
+            if (voiceBtn.querySelector('.voice-icon')) voiceBtn.querySelector('.voice-icon').style.display = 'none';
+            if (voiceBtn.querySelector('.stop-icon')) voiceBtn.querySelector('.stop-icon').style.display = '';
             recBar.classList.add('is-active');
 
         } catch (err) {
@@ -1216,8 +1425,16 @@ window.bootChatEngine = function () {
     });
 
     function getSupportedMimeType() {
-        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
-        return types.find(t => MediaRecorder.isTypeSupported(t)) || 'audio/webm';
+        const types = [
+            'audio/webm;codecs=opus', 
+            'audio/webm', 
+            'audio/ogg;codecs=opus', 
+            'audio/ogg',
+            'audio/mp4',
+            'audio/aac',
+            'audio/wav'
+        ];
+        return types.find(t => MediaRecorder.isTypeSupported(t)) || '';
     }
 
     // ──────────────────────────────────────────────────────────
@@ -1226,6 +1443,7 @@ window.bootChatEngine = function () {
     const ready = initFirebase();
     if (ready) {
         startListening();
+        setupProfiles();
     }
 
 };
@@ -1292,18 +1510,40 @@ window.bootWebRTCEngine = function() {
 
     async function getMedia(video) {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: true });
+            const constraints = {
+                audio: true,
+                video: video ? {
+                    facingMode: 'user',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                } : false
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             localStream = stream;
             localVideo.srcObject = stream;
             if (!video) {
-                localVideo.style.display = 'none'; // Hide local video if audio only
+                localVideo.style.display = 'none';
             } else {
                 localVideo.style.display = 'block';
             }
             return stream;
         } catch (err) {
             console.error('Error accessing media devices.', err);
-            alert('Kamera veya mikrofon erişimi reddedildi.');
+            // Fallback: try simple video true if constraints fail
+            if (video) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    localStream = stream;
+                    localVideo.srcObject = stream;
+                    localVideo.style.display = 'block';
+                    return stream;
+                } catch (fallbackErr) {
+                    console.error('Fallback media devices failed.', fallbackErr);
+                    alert('Kamera veya mikrofon erişimi reddedildi.');
+                }
+            } else {
+                alert('Mikrofon erişimi reddedildi.');
+            }
             return null;
         }
     }
@@ -1337,8 +1577,10 @@ window.bootWebRTCEngine = function() {
         screenCall.classList.add('is-active');
         if (!video) {
             remoteVideo.style.display = 'none';
+            localVideo.style.display = 'none';
         } else {
             remoteVideo.style.display = 'block';
+            localVideo.style.display = 'block';
         }
         // Reset controls
         btnCtrlMute.classList.remove('is-muted');
@@ -1377,13 +1619,16 @@ window.bootWebRTCEngine = function() {
         });
 
         // Handle remote tracks
-        remoteStream = new MediaStream();
-        remoteVideo.srcObject = remoteStream;
-
         peerConnection.ontrack = event => {
-            event.streams[0].getTracks().forEach(track => {
-                remoteStream.addTrack(track);
-            });
+            if (event.streams && event.streams[0]) {
+                remoteVideo.srcObject = event.streams[0];
+            } else {
+                if (!remoteStream) {
+                    remoteStream = new MediaStream();
+                    remoteVideo.srcObject = remoteStream;
+                }
+                remoteStream.addTrack(event.track);
+            }
         };
 
         // ICE Candidates
