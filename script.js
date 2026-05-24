@@ -513,6 +513,10 @@
             // Force scroll to the very top immediately on unlock
             window.scrollTo({ top: 0, behavior: 'instant' });
             
+            // Boot Chat & Call Engines now that user is authenticated
+            if (typeof window.bootChatEngine === 'function') window.bootChatEngine();
+            if (typeof window.bootWebRTCEngine === 'function') window.bootWebRTCEngine();
+            
             // Auto play music on unlock (if allowed)
             const audio = document.getElementById('bg-audio');
             const player = document.getElementById('audio-player');
@@ -818,7 +822,8 @@
    WhatsApp-Style: Text + Photo/Video + Voice Notes
    ============================================================ */
 
-(function () {
+window.bootChatEngine = function () {
+    'use strict';
     'use strict';
 
     // ──────────────────────────────────────────────────────────
@@ -1183,13 +1188,13 @@
         startListening();
     }
 
-})();
+};
 
 /* ============================================================
    WEBRTC VIDEO & AUDIO CALLING SYSTEM
    ============================================================ */
 
-(function() {
+window.bootWebRTCEngine = function() {
     'use strict';
 
     // Get Firebase from window (initialized in previous IIFE)
@@ -1561,5 +1566,5 @@
     // Start listening for incoming calls on init
     listenForIncomingCalls();
 
-})();
+};
 
