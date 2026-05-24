@@ -452,7 +452,8 @@
     }
 
     // ──────────────────────────────────────────────
-    // iOS KEYPAD LOVE LOCK SCREEN LOGIC (Şifre: 2502)
+    // iOS KEYPAD LOVE LOCK SCREEN LOGIC
+    // Şifre 2502 = İrem | Şifre 1234 = Sen (değiştir!)
     // ──────────────────────────────────────────────
     function setupLockScreen() {
         const lockScreen = document.getElementById('lock-screen');
@@ -466,7 +467,12 @@
         if (!lockScreen) return;
 
         let typedCode = [];
-        const CORRECT_CODE = '2502'; // 25 Şubat (Sevgilinin Doğum Günü)
+
+        // ── İki kullanıcının şifreleri ──
+        const CODES = {
+            '2502': 'irem',   // İrem'in şifresi: doğum günü 25 Şubat
+            '1234': 'ben'     // Senin şifren — değiştirmek istersen söyle!
+        };
 
         // Disable scrolling initially
         document.body.style.overflow = 'hidden';
@@ -496,12 +502,15 @@
             }, 600);
         }
 
-        function handleCorrectCode() {
+        function handleCorrectCode(userName) {
+            // Kullanıcı kimliğini kaydet — chat bunu kullanacak
+            sessionStorage.setItem('af_user', userName);
+
             triggerHeartBurst();
             lockScreen.classList.add('is-unlocked');
             document.body.style.overflow = '';
             
-            // Force scroll to the very top immediately on unlock to prevent any browser jump
+            // Force scroll to the very top immediately on unlock
             window.scrollTo({ top: 0, behavior: 'instant' });
             
             // Auto play music on unlock (if allowed)
@@ -511,9 +520,7 @@
                 audio.volume = 0.4;
                 audio.play().then(() => {
                     if (player) player.classList.add('is-playing');
-                }).catch(err => {
-                    console.log("Auto-play blocked by browser. Music will play on first click.");
-                });
+                }).catch(() => {});
             }
 
             setTimeout(triggerHeartBurst, 400);
@@ -527,8 +534,9 @@
 
             if (typedCode.length === 4) {
                 const entered = typedCode.join('');
-                if (entered === CORRECT_CODE) {
-                    setTimeout(handleCorrectCode, 200);
+                const user = CODES[entered];
+                if (user) {
+                    setTimeout(() => handleCorrectCode(user), 200);
                 } else {
                     setTimeout(handleWrongCode, 200);
                 }
@@ -818,23 +826,23 @@
     // Firebase Console > Project Settings > Your Apps > Web App > firebaseConfig
     // ──────────────────────────────────────────────────────────
     const FIREBASE_CONFIG = {
-        apiKey:            "BURAYA_API_KEY",
-        authDomain:        "BURAYA_AUTH_DOMAIN",
-        databaseURL:       "BURAYA_DATABASE_URL",
-        projectId:         "BURAYA_PROJECT_ID",
-        storageBucket:     "BURAYA_STORAGE_BUCKET",
-        messagingSenderId: "BURAYA_MESSAGING_SENDER_ID",
-        appId:             "BURAYA_APP_ID"
+        apiKey:            "AIzaSyDk9W4N7eO2bJwgjDoih52waavnqtHyrrw",
+        authDomain:        "angel-face-4b2a7.firebaseapp.com",
+        databaseURL:       "https://angel-face-4b2a7-default-rtdb.firebaseio.com",
+        projectId:         "angel-face-4b2a7",
+        storageBucket:     "angel-face-4b2a7.firebasestorage.app",
+        messagingSenderId: "988012476022",
+        appId:             "1:988012476022:web:50f8b03d2b4cd220675157"
     };
 
-    // Hangi cihaz kim? (İki kullanıcıyı ayırt etmek için)
-    // İlk açılışta kullanıcı adı sor ya da basit bir yöntem:
-    // URL'e ?user=irem veya ?user=ben ile girilince o kullanıcı olur.
+    // Hangi kullanıcı giriş yaptı?
     function getMyName() {
+        // sessionStorage'dan al (lock screen tarafından set edildi)
+        const stored = sessionStorage.getItem('af_user');
+        if (stored) return stored;
+        // Fallback: URL param
         const params = new URLSearchParams(window.location.search);
-        const u = params.get('user');
-        if (u === 'irem') return 'irem';
-        return 'ben'; // varsayılan: siteyi yapan kişi
+        return params.get('user') || 'ben';
     }
 
     const MY_NAME = getMyName();
