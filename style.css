@@ -1218,31 +1218,30 @@ body {
 
 .lock-screen__title {
     font-family: var(--ff-script);
-    font-size: 4.2rem;
+    font-size: min(3.5rem, 11vw);
     font-weight: 700;
     background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 50%, #ccaeff 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     filter: drop-shadow(0 4px 15px rgba(255, 117, 140, 0.4));
-    letter-spacing: 2px;
+    letter-spacing: 1px;
 }
 
 .lock-screen__subtitle {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.7);
     font-weight: 300;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
     letter-spacing: 0.5px;
 }
 
-/* Passcode Dots */
 .passcode-dots {
     display: flex;
     justify-content: center;
     gap: var(--space-md);
-    margin-bottom: var(--space-xl);
+    margin-bottom: var(--space-lg);
 }
 
 .passcode-dot {
@@ -1271,14 +1270,14 @@ body {
 .keypad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-    max-width: 320px;
-    margin: 0 auto var(--space-lg);
+    gap: 16px;
+    max-width: 260px;
+    margin: 0 auto;
 }
 
 .keypad__btn {
-    width: 80px;
-    height: 80px;
+    width: 68px;
+    height: 68px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1298,19 +1297,19 @@ body {
 }
 
 .keypad__num {
-    font-size: 2.2rem;
+    font-size: 1.8rem;
     font-weight: 300;
-    line-height: 1.1;
+    line-height: 1;
     color: #ffffff;
     transition: transform 0.15s ease;
 }
 
 .keypad__letters {
-    font-size: 0.6rem;
-    letter-spacing: 2px;
+    font-size: 0.5rem;
+    letter-spacing: 1px;
     color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
-    margin-top: 2px;
+    margin-top: 1px;
     font-weight: 500;
     transition: color 0.15s ease;
 }
