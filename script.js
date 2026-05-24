@@ -1374,6 +1374,9 @@
         // Create Firebase document for the call
         const callRef = db.ref(CALL_PATH).push();
         currentCallId = callRef.key;
+        
+        // Remove call if caller disconnects or closes tab
+        callRef.onDisconnect().remove();
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -1426,6 +1429,15 @@
     function listenForIncomingCalls() {
         db.ref(CALL_PATH).on('child_added', snapshot => {
             const call = snapshot.val();
+            
+            // Eğer arama 45 saniyeden eskiyse "hayalet" aramadır, yoksay ve temizle
+            const now = Date.now();
+            const callTime = call.timestamp || now;
+            if (now - callTime > 45000) {
+                snapshot.ref.remove();
+                return;
+            }
+
             if (call.target === MY_NAME && call.status === 'calling') {
                 currentCallId = snapshot.key;
                 isVideoCall = call.video;
