@@ -2764,6 +2764,24 @@ video.chat-bubble__media {
     box-shadow: 0 6px 20px rgba(255, 77, 125, 0.55);
 }
 
+.profile-clear-chat-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 59, 48, 0.25);
+    color: #ff453a;
+    padding: 11px 16px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+.profile-clear-chat-btn:hover {
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.5);
+    box-shadow: 0 4px 12px rgba(255, 59, 48, 0.15);
+}
+
 /* ============================================================
    MOBILE RESPONSIVE FIXES (Prevent Input Overflow)
    ============================================================ */

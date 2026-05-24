@@ -1077,6 +1077,19 @@ window.bootChatEngine = function () {
                 if (statusEl) statusEl.classList.add('is-seen');
             }
         });
+
+        // Sohbet geçmişi silindiğinde anlık güncelle
+        ref.on('child_removed', (snap) => {
+            const bubble = messagesEl.querySelector(`[data-key="${snap.key}"]`);
+            if (bubble) {
+                bubble.remove();
+            }
+            // Eğer tüm mesajlar silindiyse karşılama ekranını geri getir
+            if (messagesEl.querySelectorAll('.chat-bubble').length === 0) {
+                messagesEl.innerHTML = '<div class="chat-welcome"><div class="chat-welcome__icon">💌</div><p>Sana özel şifreli mesajlaşma kanalı.</p><p>Sadece ikimiz için... ❤️</p></div>';
+                lastDateStr = '';
+            }
+        });
     }
 
     // ──────────────────────────────────────────────────────────
@@ -1258,6 +1271,25 @@ window.bootChatEngine = function () {
                 } finally {
                     profileSaveBtn.disabled = false;
                     profileSaveBtn.textContent = 'Değişiklikleri Kaydet';
+                }
+            });
+        }
+
+        // Sohbet Geçmişini Temizle
+        const clearChatBtn = document.getElementById('profile-clear-chat-btn');
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', () => {
+                const confirmed = confirm('Sohbet geçmişini tamamen silmek istediğine emin misin? Bu işlem geri alınamaz ve tüm mesajlar ikimiz için de silinecektir! ❤️');
+                if (confirmed) {
+                    db.ref(CHAT_PATH).remove()
+                        .then(() => {
+                            alert('Tüm sohbet geçmişi başarıyla temizlendi! ✨');
+                            profileModal.classList.remove('is-active');
+                        })
+                        .catch((err) => {
+                            console.error('Sohbet temizleme hatası:', err);
+                            alert('Sohbet temizlenirken bir hata oluştu.');
+                        });
                 }
             });
         }
