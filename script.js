@@ -471,7 +471,7 @@
         // ── İki kullanıcının şifreleri ──
         const CODES = {
             '2502': 'irem',   // İrem'in şifresi: doğum günü 25 Şubat
-            '1234': 'ben'     // Senin şifren — değiştirmek istersen söyle!
+            '1508': 'ben'     // Senin şifren: doğum günü 15 Ağustos
         };
 
         // Disable scrolling initially
@@ -1184,3 +1184,370 @@
     }
 
 })();
+
+/* ============================================================
+   WEBRTC VIDEO & AUDIO CALLING SYSTEM
+   ============================================================ */
+
+(function() {
+    'use strict';
+
+    // Get Firebase from window (initialized in previous IIFE)
+    const db = window.firebase ? window.firebase.database() : null;
+    if (!db) return;
+
+    function getMyName() {
+        const stored = sessionStorage.getItem('af_user');
+        if (stored) return stored;
+        const params = new URLSearchParams(window.location.search);
+        return params.get('user') || 'ben';
+    }
+
+    const MY_NAME = getMyName();
+    const TARGET_NAME = MY_NAME === 'irem' ? 'ben' : 'irem';
+    const CALL_PATH = 'angelface_chat/calls';
+
+    // DOM Elements
+    const btnCallAudio = document.getElementById('chat-call-audio');
+    const btnCallVideo = document.getElementById('chat-call-video');
+    
+    const modalIncoming = document.getElementById('call-incoming');
+    const incomingType = document.getElementById('call-incoming-type');
+    const btnReject = document.getElementById('call-reject');
+    const btnAcceptAudio = document.getElementById('call-accept-audio');
+    const btnAcceptVideo = document.getElementById('call-accept-video');
+
+    const screenCall = document.getElementById('call-screen');
+    const remoteVideo = document.getElementById('call-remote-video');
+    const localVideo = document.getElementById('call-local-video');
+    const callTimer = document.getElementById('call-screen-timer');
+    const btnCtrlMute = document.getElementById('call-ctrl-mute');
+    const btnCtrlEnd = document.getElementById('call-ctrl-end');
+    const btnCtrlCam = document.getElementById('call-ctrl-cam');
+
+    // WebRTC Variables
+    let peerConnection = null;
+    let localStream = null;
+    let remoteStream = null;
+    let currentCallId = null;
+    let isVideoCall = false;
+    let timerInterval = null;
+    let callStartTime = 0;
+
+    const configuration = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
+
+    // ──────────────────────────────────────────────────────────
+    // MEDIA & UI HELPERS
+    // ──────────────────────────────────────────────────────────
+
+    async function getMedia(video) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: true });
+            localStream = stream;
+            localVideo.srcObject = stream;
+            if (!video) {
+                localVideo.style.display = 'none'; // Hide local video if audio only
+            } else {
+                localVideo.style.display = 'block';
+            }
+            return stream;
+        } catch (err) {
+            console.error('Error accessing media devices.', err);
+            alert('Kamera veya mikrofon erişimi reddedildi.');
+            return null;
+        }
+    }
+
+    function stopMedia() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        localVideo.srcObject = null;
+        remoteVideo.srcObject = null;
+    }
+
+    function startTimer() {
+        callStartTime = Date.now();
+        callTimer.textContent = '00:00';
+        timerInterval = setInterval(() => {
+            const diff = Math.floor((Date.now() - callStartTime) / 1000);
+            const m = Math.floor(diff / 60).toString().padStart(2, '0');
+            const s = (diff % 60).toString().padStart(2, '0');
+            callTimer.textContent = `${m}:${s}`;
+        }, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        callTimer.textContent = '00:00';
+    }
+
+    function showActiveCallScreen(video) {
+        screenCall.classList.add('is-active');
+        if (!video) {
+            remoteVideo.style.display = 'none';
+        } else {
+            remoteVideo.style.display = 'block';
+        }
+        // Reset controls
+        btnCtrlMute.classList.remove('is-muted');
+        btnCtrlCam.classList.remove('is-cam-off');
+    }
+
+    function hideActiveCallScreen() {
+        screenCall.classList.remove('is-active');
+        stopTimer();
+    }
+
+    function resetCall() {
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        stopMedia();
+        hideActiveCallScreen();
+        modalIncoming.classList.remove('is-active');
+        currentCallId = null;
+        
+        // Remove Firebase listener for this specific call to prevent memory leaks
+        db.ref(CALL_PATH).off('child_removed');
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // WEBRTC PEER CONNECTION SETUP
+    // ──────────────────────────────────────────────────────────
+
+    function createPeerConnection() {
+        peerConnection = new RTCPeerConnection(configuration);
+
+        // Add local tracks
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        // Handle remote tracks
+        remoteStream = new MediaStream();
+        remoteVideo.srcObject = remoteStream;
+
+        peerConnection.ontrack = event => {
+            event.streams[0].getTracks().forEach(track => {
+                remoteStream.addTrack(track);
+            });
+        };
+
+        // ICE Candidates
+        peerConnection.onicecandidate = event => {
+            if (event.candidate && currentCallId) {
+                const candidatesRef = db.ref(`${CALL_PATH}/${currentCallId}/${MY_NAME}Candidates`);
+                candidatesRef.push(event.candidate.toJSON());
+            }
+        };
+
+        // Connection State
+        peerConnection.onconnectionstatechange = () => {
+            if (peerConnection.connectionState === 'connected') {
+                startTimer();
+            } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+                endCall();
+            }
+        };
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // MAKE A CALL (OFFER)
+    // ──────────────────────────────────────────────────────────
+
+    async function startCall(video) {
+        isVideoCall = video;
+        const stream = await getMedia(video);
+        if (!stream) return;
+
+        showActiveCallScreen(video);
+        createPeerConnection();
+
+        // Create Firebase document for the call
+        const callRef = db.ref(CALL_PATH).push();
+        currentCallId = callRef.key;
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        const callData = {
+            caller: MY_NAME,
+            target: TARGET_NAME,
+            video: video,
+            offer: {
+                type: offer.type,
+                sdp: offer.sdp
+            },
+            status: 'calling',
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        await callRef.set(callData);
+
+        // Listen for Answer
+        callRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) {
+                // Call was deleted/rejected
+                resetCall();
+                return;
+            }
+            
+            if (data.status === 'answered' && data.answer && !peerConnection.currentRemoteDescription) {
+                const answerDesc = new RTCSessionDescription(data.answer);
+                peerConnection.setRemoteDescription(answerDesc);
+            }
+        });
+
+        // Listen for Remote ICE Candidates
+        db.ref(`${CALL_PATH}/${currentCallId}/${TARGET_NAME}Candidates`).on('child_added', snapshot => {
+            const candidate = new RTCIceCandidate(snapshot.val());
+            peerConnection.addIceCandidate(candidate);
+        });
+        
+        listenForCallEnd();
+    }
+
+    btnCallAudio.addEventListener('click', () => startCall(false));
+    btnCallVideo.addEventListener('click', () => startCall(true));
+
+    // ──────────────────────────────────────────────────────────
+    // RECEIVE A CALL (INCOMING & ANSWER)
+    // ──────────────────────────────────────────────────────────
+
+    function listenForIncomingCalls() {
+        db.ref(CALL_PATH).on('child_added', snapshot => {
+            const call = snapshot.val();
+            if (call.target === MY_NAME && call.status === 'calling') {
+                currentCallId = snapshot.key;
+                isVideoCall = call.video;
+                incomingType.textContent = isVideoCall ? 'Görüntülü Arama' : 'Sesli Arama';
+                modalIncoming.classList.add('is-active');
+                
+                // If call is deleted while ringing, hide modal
+                snapshot.ref.on('value', snap => {
+                    if (!snap.val() && currentCallId === snapshot.key) {
+                        modalIncoming.classList.remove('is-active');
+                        resetCall();
+                    }
+                });
+            }
+        });
+    }
+
+    async function answerCall(video) {
+        modalIncoming.classList.remove('is-active');
+        
+        // Target can choose to answer a video call with audio only
+        const actualVideo = isVideoCall && video; 
+        
+        const stream = await getMedia(actualVideo);
+        if (!stream) {
+            // Reject if media fails
+            rejectCall();
+            return;
+        }
+
+        showActiveCallScreen(actualVideo);
+        createPeerConnection();
+
+        const callRef = db.ref(`${CALL_PATH}/${currentCallId}`);
+        const snapshot = await callRef.once('value');
+        const callData = snapshot.val();
+
+        if (!callData || !callData.offer) {
+            resetCall();
+            return;
+        }
+
+        // Set Remote Description
+        const offerDesc = new RTCSessionDescription(callData.offer);
+        await peerConnection.setRemoteDescription(offerDesc);
+
+        // Create Answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        // Save Answer
+        await callRef.update({
+            status: 'answered',
+            answer: {
+                type: answer.type,
+                sdp: answer.sdp
+            }
+        });
+
+        // Listen for Remote ICE Candidates
+        db.ref(`${CALL_PATH}/${currentCallId}/${TARGET_NAME}Candidates`).on('child_added', snap => {
+            const candidate = new RTCIceCandidate(snap.val());
+            peerConnection.addIceCandidate(candidate);
+        });
+        
+        listenForCallEnd();
+    }
+
+    function rejectCall() {
+        if (currentCallId) {
+            db.ref(`${CALL_PATH}/${currentCallId}`).remove();
+        }
+        modalIncoming.classList.remove('is-active');
+        resetCall();
+    }
+
+    btnAcceptAudio.addEventListener('click', () => answerCall(false));
+    btnAcceptVideo.addEventListener('click', () => answerCall(true));
+    btnReject.addEventListener('click', rejectCall);
+
+    // ──────────────────────────────────────────────────────────
+    // END CALL & CONTROLS
+    // ──────────────────────────────────────────────────────────
+
+    function endCall() {
+        if (currentCallId) {
+            db.ref(`${CALL_PATH}/${currentCallId}`).remove();
+        }
+        resetCall();
+    }
+    
+    function listenForCallEnd() {
+        // If the call node is removed by the other peer, end our call too
+        db.ref(CALL_PATH).on('child_removed', snapshot => {
+            if (snapshot.key === currentCallId) {
+                resetCall();
+            }
+        });
+    }
+
+    btnCtrlEnd.addEventListener('click', endCall);
+
+    btnCtrlMute.addEventListener('click', () => {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            btnCtrlMute.classList.toggle('is-muted', !audioTrack.enabled);
+        }
+    });
+
+    btnCtrlCam.addEventListener('click', () => {
+        if (!localStream) return;
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            btnCtrlCam.classList.toggle('is-cam-off', !videoTrack.enabled);
+        }
+    });
+
+    // Start listening for incoming calls on init
+    listenForIncomingCalls();
+
+})();
+
