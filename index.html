@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Angel Face - Seni özlüyorum. İlk ve son yazışmamızdan bu yana geçen her saniye burada.">
+    <meta name="theme-color" content="#0a0a1a">
+    <title>Angel Face 💜</title>
+
+    <!-- Inline Favicon (Heart SVG) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💜</text></svg>">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Poppins:wght@300;400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ============ AUDIO ENGINE ============ -->
+    <audio id="bg-audio" loop>
+        <source src="https://assets.mixkit.co/music/preview/mixkit-beautiful-dream-493.mp3" type="audio/mpeg">
+        <source src="https://assets.mixkit.co/music/preview/mixkit-piano-reflections-22.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- ============ LOVE LOCK SCREEN ============ -->
+    <div class="lock-screen" id="lock-screen">
+        <div class="lock-screen__glow"></div>
+        <div class="lock-screen__card">
+            <div class="lock-screen__heart">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="56" height="56">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </div>
+            <h2 class="lock-screen__title">İrem'im 💜</h2>
+            <p class="lock-screen__subtitle">Kalbimin sahibi için giriş şifresi...</p>
+            
+            <!-- Passcode Dots Indicators -->
+            <div class="passcode-dots">
+                <div class="passcode-dot"></div>
+                <div class="passcode-dot"></div>
+                <div class="passcode-dot"></div>
+                <div class="passcode-dot"></div>
+            </div>
+            
+            <!-- Keypad Matrix -->
+            <div class="keypad">
+                <button class="keypad__btn" data-key="1">
+                    <span class="keypad__num">1</span>
+                    <span class="keypad__letters">&nbsp;</span>
+                </button>
+                <button class="keypad__btn" data-key="2">
+                    <span class="keypad__num">2</span>
+                    <span class="keypad__letters">A B C</span>
+                </button>
+                <button class="keypad__btn" data-key="3">
+                    <span class="keypad__num">3</span>
+                    <span class="keypad__letters">D E F</span>
+                </button>
+                <button class="keypad__btn" data-key="4">
+                    <span class="keypad__num">4</span>
+                    <span class="keypad__letters">G H I</span>
+                </button>
+                <button class="keypad__btn" data-key="5">
+                    <span class="keypad__num">5</span>
+                    <span class="keypad__letters">J K L</span>
+                </button>
+                <button class="keypad__btn" data-key="6">
+                    <span class="keypad__num">6</span>
+                    <span class="keypad__letters">M N O</span>
+                </button>
+                <button class="keypad__btn" data-key="7">
+                    <span class="keypad__num">7</span>
+                    <span class="keypad__letters">P Q R S</span>
+                </button>
+                <button class="keypad__btn" data-key="8">
+                    <span class="keypad__num">8</span>
+                    <span class="keypad__letters">T U V</span>
+                </button>
+                <button class="keypad__btn" data-key="9">
+                    <span class="keypad__num">9</span>
+                    <span class="keypad__letters">W X Y Z</span>
+                </button>
+                <button class="keypad__btn keypad__btn--action" id="keypad-hint">
+                    <span class="keypad__num">💡</span>
+                </button>
+                <button class="keypad__btn" data-key="0">
+                    <span class="keypad__num">0</span>
+                    <span class="keypad__letters">+</span>
+                </button>
+                <button class="keypad__btn keypad__btn--action" id="keypad-delete">
+                    <span class="keypad__num">⌫</span>
+                </button>
+            </div>
+            
+            <!-- Lock hint block -->
+            <div class="lock-screen__hint-box is-hidden" id="lock-hint-box">
+                <p>En özel günün... Doğduğun gün (GGAA formatında, örn: 25 Şubat ise 2502) 🎂</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ LOADING SCREEN ============ -->
+    <div class="loader" id="loader">
+        <div class="loader__content">
+            <div class="loader__heart">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </div>
+            <p class="loader__text">yükleniyor...</p>
+        </div>
+    </div>
+
+    <!-- ============ CANVAS FOR FLOATING HEARTS ============ -->
+    <canvas id="hearts-canvas"></canvas>
+
+    <!-- ============ AMBIENT GLOW ORBS ============ -->
+    <div class="ambient-orb ambient-orb--1"></div>
+    <div class="ambient-orb ambient-orb--2"></div>
+    <div class="ambient-orb ambient-orb--3"></div>
+
+    <!-- ============ STARFIELD BACKGROUND ============ -->
+    <div class="starfield" id="starfield"></div>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main-wrapper">
+
+        <!-- ── HERO SECTION ── -->
+        <header class="hero" id="hero">
+            <div class="hero__badge">
+                <span class="hero__badge-dot"></span>
+                <span>canlı sayıyor...</span>
+            </div>
+            <h1 class="hero__title">
+                <span class="hero__title-line hero__title-line--script">Angel Face</span>
+                <span class="hero__title-line hero__title-line--sub">seni özlüyorum</span>
+            </h1>
+            <p class="hero__tagline">Her saniye sensiz, ama her saniye senin için...</p>
+            <div class="hero__divider">
+                <span></span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                <span></span>
+            </div>
+            <div class="hero__scroll-hint" id="scroll-hint">
+                <span>aşağı kaydır</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M7 13l5 5 5-5M7 6l5 5 5-5"/>
+                </svg>
+            </div>
+        </header>
+
+        <!-- ── TIMELINE SECTION ── -->
+        <section class="timeline" id="timeline">
+            <div class="timeline__line"></div>
+
+            <!-- ── FIRST MESSAGE COUNTER ── -->
+            <article class="counter-card counter-card--first" id="first-message-card">
+                <div class="counter-card__glow"></div>
+                <div class="counter-card__inner">
+                    <div class="counter-card__badge">İLK KIVILCIM</div>
+                    <div class="counter-card__header">
+                        <div class="counter-card__icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                            </svg>
+                        </div>
+                        <div class="counter-card__label">
+                            <h2>İlk Mesajın</h2>
+                            <p class="counter-card__subtitle">Hayatıma girdiğin an</p>
+                        </div>
+                    </div>
+                    <time class="counter-card__date" datetime="2026-05-16T14:28:00+03:00">
+                        <span class="counter-card__date-day">16 Mayıs 2026</span>
+                        <span class="counter-card__date-time">14:28</span>
+                    </time>
+                    <div class="counter-card__timer" id="timer-first">
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="first-days">000</span>
+                            <span class="timer-unit__label">Gün</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="first-hours">00</span>
+                            <span class="timer-unit__label">Saat</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="first-minutes">00</span>
+                            <span class="timer-unit__label">Dakika</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value timer-unit__value--seconds" id="first-seconds">00</span>
+                            <span class="timer-unit__label">Saniye</span>
+                        </div>
+                    </div>
+                    <div class="counter-card__totals-grid">
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="first-total-days">0</span>
+                            <span class="totals-pill__label">Toplam Gün</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="first-total-hours">0</span>
+                            <span class="totals-pill__label">Toplam Saat</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="first-total-minutes">0</span>
+                            <span class="totals-pill__label">Toplam Dk</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="first-total-seconds">0</span>
+                            <span class="totals-pill__label">Toplam Sn</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- ── STATS BRIDGE ── -->
+            <div class="stats-bridge" id="stats-bridge">
+                <div class="stats-bridge__connector stats-bridge__connector--top"></div>
+                <div class="stats-bridge__card">
+                    <div class="stats-bridge__inner">
+                        <div class="stats-bridge__icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                        </div>
+                        <h3 class="stats-bridge__title">Aramızdaki Zaman</h3>
+                        <p class="stats-bridge__subtitle">İlk mesajdan son konuşmaya kadar</p>
+                        <div class="stats-bridge__grid">
+                            <div class="stats-bridge__stat">
+                                <span class="stats-bridge__stat-value">4</span>
+                                <span class="stats-bridge__stat-label">Gün</span>
+                            </div>
+                            <div class="stats-bridge__stat-separator"></div>
+                            <div class="stats-bridge__stat">
+                                <span class="stats-bridge__stat-value">2</span>
+                                <span class="stats-bridge__stat-label">Saat</span>
+                            </div>
+                            <div class="stats-bridge__stat-separator"></div>
+                            <div class="stats-bridge__stat">
+                                <span class="stats-bridge__stat-value">57</span>
+                                <span class="stats-bridge__stat-label">Dakika</span>
+                            </div>
+                        </div>
+                        <div class="stats-bridge__footer">
+                            <p class="stats-bridge__detail">
+                                Toplam <strong>5.937</strong> dakika &middot; <strong>356.220</strong> saniye
+                            </p>
+                            <p class="stats-bridge__quote">"Her dakikan ayrı güzeldi..."</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-bridge__connector stats-bridge__connector--bottom"></div>
+            </div>
+
+            <!-- ── LAST MESSAGE COUNTER ── -->
+            <article class="counter-card counter-card--last" id="last-message-card">
+                <div class="counter-card__glow"></div>
+                <div class="counter-card__inner">
+                    <div class="counter-card__badge">SON SES</div>
+                    <div class="counter-card__header">
+                        <div class="counter-card__icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="counter-card__label">
+                            <h2>Son Konuşmamız</h2>
+                            <p class="counter-card__subtitle">Son söz, bitmeyen özlem</p>
+                        </div>
+                    </div>
+                    <time class="counter-card__date" datetime="2026-05-20T17:25:00+03:00">
+                        <span class="counter-card__date-day">20 Mayıs 2026</span>
+                        <span class="counter-card__date-time">17:25</span>
+                    </time>
+                    <div class="counter-card__timer" id="timer-last">
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="last-days">000</span>
+                            <span class="timer-unit__label">Gün</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="last-hours">00</span>
+                            <span class="timer-unit__label">Saat</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value" id="last-minutes">00</span>
+                            <span class="timer-unit__label">Dakika</span>
+                        </div>
+                        <div class="timer-separator">:</div>
+                        <div class="timer-unit">
+                            <span class="timer-unit__value timer-unit__value--seconds" id="last-seconds">00</span>
+                            <span class="timer-unit__label">Saniye</span>
+                        </div>
+                    </div>
+                    <div class="counter-card__totals-grid">
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="last-total-days">0</span>
+                            <span class="totals-pill__label">Toplam Gün</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="last-total-hours">0</span>
+                            <span class="totals-pill__label">Toplam Saat</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="last-total-minutes">0</span>
+                            <span class="totals-pill__label">Toplam Dk</span>
+                        </div>
+                        <div class="totals-pill">
+                            <span class="totals-pill__value" id="last-total-seconds">0</span>
+                            <span class="totals-pill__label">Toplam Sn</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <!-- ── PHOTO GALLERY SECTION ── -->
+        <section class="gallery" id="gallery">
+            <div class="gallery__header">
+                <span class="gallery__badge">Görsel Günlük</span>
+                <h2 class="gallery__title">Bizden Kareler</h2>
+                <p class="gallery__subtitle">Kelimelerin yetmediği yerde anılar konuşur</p>
+            </div>
+            
+            <div class="gallery__container">
+                <div class="polaroid-wrapper">
+                    <!-- Polaroid 1 -->
+                    <div class="polaroid" style="--rotation: -3deg;">
+                        <div class="polaroid__img-wrapper">
+                            <img src="love_starry_night.png" alt="Yıldızlı Gece" class="polaroid__img">
+                            <div class="polaroid__glow"></div>
+                        </div>
+                        <div class="polaroid__caption">
+                            <h3>Yıldızların Altında</h3>
+                            <p>Seni gökyüzündeki her bir yıldıza anlattım...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Polaroid 2 -->
+                    <div class="polaroid" style="--rotation: 2deg;">
+                        <div class="polaroid__img-wrapper">
+                            <img src="love_holding_hands.png" alt="Sıkıca Tutunmak" class="polaroid__img">
+                            <div class="polaroid__glow"></div>
+                        </div>
+                        <div class="polaroid__caption">
+                            <h3>Sıkıca Tutunmak</h3>
+                            <p>Ellerini tuttuğum an tüm dünya sessizleşiyor.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Polaroid 3 -->
+                    <div class="polaroid" style="--rotation: -1deg;">
+                        <div class="polaroid__img-wrapper">
+                            <img src="love_cozy_cafe.png" alt="Sıcak Kahve ve Sen" class="polaroid__img">
+                            <div class="polaroid__glow"></div>
+                        </div>
+                        <div class="polaroid__caption">
+                            <h3>Cozy Sabahlar</h3>
+                            <p>Kahve kokusu, tatlı rüzgar ve senin gülüşün.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── 3D LOVE LETTER SECTION ── -->
+        <section class="love-letter-section" id="love-letter-section">
+            <div class="love-letter-section__header">
+                <span class="love-letter-section__badge">Gizli Zarflar</span>
+                <h2 class="love-letter-section__title">Sana Özel Mektup</h2>
+                <p class="love-letter-section__subtitle">Kalbimden dökülen kelimeleri zarftan çıkar</p>
+            </div>
+            
+            <div class="envelope-wrapper">
+                <div class="envelope" id="envelope">
+                    <div class="envelope__front"></div>
+                    <div class="envelope__top"></div>
+                    <div class="envelope__back"></div>
+                    <div class="letter" id="letter">
+                        <div class="letter__content">
+                            <h4>Sevgili İrem'im,</h4>
+                            <p><strong>İ</strong>lk gördüğüm an anladım kalbimin sana ait olduğunu,<br>
+                            <strong>R</strong>üyalarımı süsleyen, gerçeğe dönüştüren o güzel yüzünü,<br>
+                            <strong>E</strong>llerini tuttuğumda kayboluyor zaman, siliniyor tüm dertlerim,<br>
+                            <strong>M</strong>elekleri kıskandıran gülüşünle, sen benim tek nefesimsin.</p>
+                            <p>Gelişinle dünyamı aydınlattın. Aramızdaki sevgi her geçen saniye daha da büyüyor. İyi ki doğdun, iyi ki benimlesin melek yüzlüm.</p>
+                            <p class="letter__sign">Sonsuza dek senin... 💜</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="envelope-action">
+                <button class="envelope-action__btn" id="envelope-btn">Zarfı Aç 💌</button>
+            </div>
+        </section>
+
+        <!-- ── SECRET MESSAGE SECTION ── -->
+        <section class="secret-note" id="secret-note">
+            <div class="secret-note__card">
+                <div class="secret-note__icon">💬</div>
+                <h3 class="secret-note__title">Sana Bir Notum Var</h3>
+                <p class="secret-note__text" id="secret-note-text">"Kalbimdeki yerin her geçen saniye daha da büyüyor..."</p>
+                <button class="secret-note__btn" id="secret-note-btn">Başka Bir Not Oku 💜</button>
+            </div>
+        </section>
+
+        <!-- ── FOOTER ── -->
+        <footer class="footer" id="footer">
+            <div class="footer__heart-beat">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+            </div>
+            <p class="footer__text">sonsuzluğa kadar seninle...</p>
+            <p class="footer__made">angel face için yapıldı 💜</p>
+        </footer>
+
+    </main>
+
+    <!-- ============ PROFESSIONAL LIGHTBOX ============ -->
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox__close" id="lightbox-close">&times;</div>
+        <div class="lightbox__content">
+            <img src="" alt="Büyütülmüş Görsel" class="lightbox__img" id="lightbox-img">
+            <div class="lightbox__caption" id="lightbox-caption"></div>
+        </div>
+    </div>
+
+    <!-- ============ LOVE LETTER ZOOM MODAL ============ -->
+    <div class="letter-modal" id="letter-modal">
+        <div class="letter-modal__backdrop"></div>
+        <div class="letter-modal__close" id="letter-modal-close">&times;</div>
+        <div class="letter-modal__content">
+            <div class="letter-modal__paper">
+                <div class="letter-modal__wax-seal">💜</div>
+                <div class="letter-modal__text">
+                    <h4>Sevgili İrem'im,</h4>
+                    <p>
+                        <strong>İ</strong>lk gördüğüm an anladım kalbimin sana ait olduğunu,<br>
+                        <strong>R</strong>üyalarımı süsleyen, gerçeğe dönüştüren o güzel yüzünü,<br>
+                        <strong>E</strong>llerini tuttuğumda kayboluyor zaman, siliniyor tüm dertlerim,<br>
+                        <strong>M</strong>elekleri kıskandıran gülüşünle, sen benim tek nefesimsin.
+                    </p>
+                    <p>Gelişinle bana kattığın her gülüş, her kelime içimde bitmeyen bir bahar başlattı. Aramızdaki mesafeler veya geçen zaman ne kadar zorlayıcı görünse de, her saniye senin sevginle daha da güçleniyorum. Sen benim hayatımın en özel köşesi, en kıymetli hazinesisin.</p>
+                    <p>İyi ki doğdun, iyi ki varsın ve iyi ki benim hayatımdasın. Seni her şeyden çok seviyorum.</p>
+                    <p class="letter-modal__sign">Sonsuza dek senin... 💜</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
