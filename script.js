@@ -1472,31 +1472,61 @@ window.bootWebRTCEngine = function() {
     // ──────────────────────────────────────────────────────────
 
     function listenForIncomingCalls() {
-        db.ref(CALL_PATH).on('child_added', snapshot => {
-            const call = snapshot.val();
-            
-            // Eğer arama 45 saniyeden eskiyse "hayalet" aramadır, yoksay ve temizle
-            const now = Date.now();
-            const callTime = call.timestamp || now;
-            if (now - callTime > 45000) {
-                snapshot.ref.remove();
-                return;
-            }
+        // PHASE 1: Mevcut eski aramaları oku, temizle ve atla
+        // child_added ilk bağlanınca mevcut TÜM kayıtları tetikler.
+        // Bunu önlemek için önce mevcut key'leri topluyoruz.
+        const callsRef = db.ref(CALL_PATH);
+        const existingKeys = new Set();
 
-            if (call.target === MY_NAME && call.status === 'calling') {
-                currentCallId = snapshot.key;
-                isVideoCall = call.video;
-                incomingType.textContent = isVideoCall ? 'Görüntülü Arama' : 'Sesli Arama';
-                modalIncoming.classList.add('is-active');
-                
-                // If call is deleted while ringing, hide modal
-                snapshot.ref.on('value', snap => {
-                    if (!snap.val() && currentCallId === snapshot.key) {
-                        modalIncoming.classList.remove('is-active');
-                        resetCall();
+        callsRef.once('value', existingSnapshot => {
+            // Mevcut tüm anahtarları topla
+            if (existingSnapshot.exists()) {
+                existingSnapshot.forEach(child => {
+                    existingKeys.add(child.key);
+                    // Eski aramaları temizle
+                    const call = child.val();
+                    const now = Date.now();
+                    const callTime = call.timestamp || now;
+                    if (now - callTime > 45000) {
+                        child.ref.remove();
                     }
                 });
             }
+
+            // PHASE 2: Artık sadece YENİ gelen aramaları dinle
+            callsRef.on('child_added', snapshot => {
+                // Boot sırasında mevcut olan kayıtları atla
+                if (existingKeys.has(snapshot.key)) {
+                    existingKeys.delete(snapshot.key);
+                    return;
+                }
+
+                const call = snapshot.val();
+                if (!call) return;
+
+                // Ek güvenlik: 45 saniyeden eski aramayı yine yoksay
+                const now = Date.now();
+                const callTime = call.timestamp || now;
+                if (now - callTime > 45000) {
+                    snapshot.ref.remove();
+                    return;
+                }
+
+                if (call.target === MY_NAME && call.status === 'calling') {
+                    currentCallId = snapshot.key;
+                    isVideoCall = call.video;
+                    incomingType.textContent = isVideoCall ? 'Görüntülü Arama' : 'Sesli Arama';
+                    modalIncoming.classList.add('is-active');
+
+                    // Arama silinirse modal'ı kapat
+                    snapshot.ref.on('value', snap => {
+                        if (!snap.val() && currentCallId === snapshot.key) {
+                            modalIncoming.classList.remove('is-active');
+                            resetCall();
+                        }
+                    });
+                }
+            });
         });
     }
 
