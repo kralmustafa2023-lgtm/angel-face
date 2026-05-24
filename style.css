@@ -1149,9 +1149,9 @@ body {
     position: fixed;
     inset: 0;
     z-index: 9998;
-    background: linear-gradient(135deg, #090614, #1c0e35, #2a124a, #110822);
-    background-size: 300% 300%;
-    animation: lockScreenGlowShift 15s ease infinite;
+    background: rgba(10, 5, 20, 0.55);
+    backdrop-filter: blur(35px);
+    -webkit-backdrop-filter: blur(35px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1162,13 +1162,7 @@ body {
 }
 
 .lock-screen::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 20% 80%, rgba(255, 60, 100, 0.12) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(138, 43, 226, 0.15) 0%, transparent 50%);
-    pointer-events: none;
-    z-index: 0;
+    display: none;
 }
 
 @keyframes lockScreenGlowShift {
@@ -1189,19 +1183,18 @@ body {
 
 .lock-screen__card {
     position: relative;
-    background: rgba(20, 12, 35, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 36px;
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
-    padding: var(--space-2xl) var(--space-xl) var(--space-xl);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: var(--space-xl) 0;
     width: 100%;
-    max-width: 400px;
+    max-width: 360px;
     text-align: center;
-    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8),
-                inset 0 2px 2px rgba(255, 255, 255, 0.15);
+    box-shadow: none;
     z-index: 2;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease;
 }
 
 .lock-screen__card.error-shake {
@@ -1218,22 +1211,24 @@ body {
 }
 
 .lock-screen__title {
-    font-family: var(--ff-script);
-    font-size: 3.2rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--clr-rose-light), var(--clr-violet-light), var(--clr-lavender));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 4px;
-    filter: drop-shadow(0 0 15px var(--clr-rose-glow));
+    font-family: var(--ff-display);
+    font-size: 3rem;
+    font-weight: 500;
+    color: #ffffff;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: unset;
+    background-clip: unset;
+    margin-bottom: 8px;
+    filter: none;
+    letter-spacing: 1px;
 }
 
 .lock-screen__subtitle {
-    font-size: 0.82rem;
-    color: var(--clr-text-secondary);
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.7);
     font-weight: 300;
-    margin-bottom: var(--space-xl);
+    margin-bottom: 40px;
     letter-spacing: 0.5px;
 }
 
@@ -1246,24 +1241,24 @@ body {
 }
 
 .passcode-dot {
-    width: 13px;
-    height: 13px;
-    border: 1px solid var(--clr-glass-border);
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
-    background: hsla(280, 20%, 30%, 0.15);
-    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background: transparent;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .passcode-dot.is-active {
-    background: var(--clr-rose-light);
-    border-color: var(--clr-rose);
-    box-shadow: 0 0 15px var(--clr-rose-glow), 0 0 30px var(--clr-rose-glow);
-    transform: scale(1.22);
+    background: #ffffff;
+    border-color: #ffffff;
+    transform: scale(1.15);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
 }
 
 .passcode-dot.is-error {
     background: var(--clr-rose);
-    border-color: var(--clr-rose-deep);
+    border-color: var(--clr-rose);
     box-shadow: 0 0 15px var(--clr-rose-glow);
 }
 
@@ -1271,83 +1266,83 @@ body {
 .keypad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-md);
-    max-width: 290px;
+    gap: 24px;
+    max-width: 320px;
     margin: 0 auto var(--space-lg);
 }
 
 .keypad__btn {
-    width: 76px;
-    height: 76px;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--clr-text-primary);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
     font-family: var(--ff-body);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.2s ease;
     outline: none;
     -webkit-tap-highlight-color: transparent;
     padding: 0;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 .keypad__num {
-    font-size: 1.85rem;
+    font-size: 2.2rem;
     font-weight: 300;
     line-height: 1.1;
+    color: #ffffff;
     transition: transform 0.15s ease;
 }
 
 .keypad__letters {
-    font-size: 0.55rem;
-    letter-spacing: 1px;
-    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
-    margin-top: 1px;
-    font-weight: 600;
+    margin-top: 2px;
+    font-weight: 500;
     transition: color 0.15s ease;
 }
 
 .keypad__btn:hover, .keypad__btn.is-active {
-    background: hsla(270, 90%, 65%, 0.18);
-    border-color: hsla(270, 90%, 65%, 0.35);
-    color: var(--clr-violet-light);
-    box-shadow: 0 0 25px var(--clr-violet-glow);
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
     transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }
 
 .keypad__btn:hover .keypad__letters, .keypad__btn.is-active .keypad__letters {
-    color: var(--clr-violet-light);
+    color: #ffffff;
 }
 
 .keypad__btn:active {
-    transform: scale(0.94);
-    background: hsla(340, 100%, 60%, 0.22);
-    border-color: var(--clr-rose);
-    box-shadow: 0 0 30px var(--clr-rose-glow);
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
 .keypad__btn:active .keypad__letters {
-    color: var(--clr-rose-light);
+    color: #ffffff;
 }
 
 .keypad__btn--action {
     background: transparent;
     border-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .keypad__btn--action:hover, .keypad__btn--action.is-active {
     box-shadow: none;
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: var(--clr-text-primary);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
     transform: scale(1.05);
 }
 
