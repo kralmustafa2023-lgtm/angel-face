@@ -903,14 +903,23 @@ window.bootChatEngine = function () {
     // ──────────────────────────────────────────────────────────
     // OPEN / CLOSE CHAT
     // ──────────────────────────────────────────────────────────
-    function openChat() {
+    function openModal() {
         isOpen = true;
         modal.classList.add('is-active');
         backdrop.classList.add('is-active');
-        unreadCount = 0;
         fabBadge.style.display = 'none';
-        lastSeenTs = Date.now();
-        setTimeout(() => scrollToBottom(), 100);
+        unreadCount = 0;
+        scrollToBottom();
+
+        // Mark all unread messages from the other person as seen
+        db.ref(CHAT_PATH).once('value', snap => {
+            snap.forEach(child => {
+                const msg = child.val();
+                if (msg.sender !== MY_NAME && !msg.seen) {
+                    child.ref.update({ seen: true });
+                }
+            });
+        });
     }
 
     function closeChat() {
@@ -920,7 +929,7 @@ window.bootChatEngine = function () {
         lastSeenTs = Date.now();
     }
 
-    fab.addEventListener('click', () => isOpen ? closeChat() : openChat());
+    fab.addEventListener('click', () => isOpen ? closeChat() : openModal());
     closeBtn.addEventListener('click', closeChat);
     backdrop.addEventListener('click', closeChat);
 
@@ -981,15 +990,28 @@ window.bootChatEngine = function () {
         bubble.className = `chat-bubble ${bubbleClass}`;
         bubble.dataset.key = key;
 
+        let ticksHtml = '';
+        if (isMe) {
+            const seenClass = msg.seen ? 'is-seen' : '';
+            ticksHtml = `
+            <span class="chat-msg__status ${seenClass}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </span>`;
+        }
+
+        const metaHtml = `<div class="chat-msg__meta"><span class="chat-msg__time">${formatTime(msg.ts)}</span>${ticksHtml}</div>`;
+
         if (msg.type === 'text') {
-            bubble.innerHTML = `${escapeHtml(msg.text)}<span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+            bubble.innerHTML = `${escapeHtml(msg.text)}${metaHtml}`;
         } else if (msg.type === 'image') {
-            bubble.innerHTML = `<img src="${msg.url}" class="chat-bubble__media" alt="fotoğraf" loading="lazy"><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+            bubble.innerHTML = `<img src="${msg.url}" class="chat-bubble__media" alt="fotoğraf" loading="lazy">${metaHtml}`;
             bubble.querySelector('img').addEventListener('click', () => window.open(msg.url, '_blank'));
         } else if (msg.type === 'video') {
-            bubble.innerHTML = `<video src="${msg.url}" class="chat-bubble__media" controls playsinline></video><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+            bubble.innerHTML = `<video src="${msg.url}" class="chat-bubble__media" controls playsinline></video>${metaHtml}`;
         } else if (msg.type === 'voice') {
-            bubble.innerHTML = `<audio src="${msg.url}" class="chat-bubble__audio" controls></audio><span class="chat-bubble__time">${formatTime(msg.ts)}</span>`;
+            bubble.innerHTML = `<audio src="${msg.url}" class="chat-bubble__audio" controls></audio>${metaHtml}`;
         }
 
         messagesEl.appendChild(bubble);
@@ -1031,11 +1053,28 @@ window.bootChatEngine = function () {
 
         // Then listen for new ones
         ref.on('child_added', (snap) => {
+            const val = snap.val();
             // Skip if it was already rendered in once()
             const existing = messagesEl.querySelector(`[data-key="${snap.key}"]`);
-            if (existing) return;
-            renderMessage(snap.val(), snap.key);
-            if (isOpen) scrollToBottom();
+            if (!existing) {
+                renderMessage(val, snap.key);
+                if (isOpen) scrollToBottom();
+            }
+
+            // If chat is open and message is from the other person, mark as seen
+            if (isOpen && val.sender !== MY_NAME && !val.seen) {
+                snap.ref.update({ seen: true });
+            }
+        });
+
+        // Listen for updates (like seen status changing)
+        ref.on('child_changed', (snap) => {
+            const val = snap.val();
+            const bubble = document.querySelector(`.chat-bubble[data-key="${snap.key}"]`);
+            if (bubble && val.seen) {
+                const statusEl = bubble.querySelector('.chat-msg__status');
+                if (statusEl) statusEl.classList.add('is-seen');
+            }
         });
     }
 
