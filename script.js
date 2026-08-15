@@ -972,7 +972,265 @@ window.bootChatEngine = function () {
     // ──────────────────────────────────────────────────────────
     let lastDateStr = '';
 
+    // ──────────────────────────────────────────────────────────
+    // EMOJI REACTIONS (WhatsApp-Style)
+    // ──────────────────────────────────────────────────────────
+    let touchTimer = null;
+    let activeReactionMessageKey = null;
+
+    function bindBubbleReactionEvents(bubble, messageKey) {
+        // Desktop Right Click (Context Menu)
+        bubble.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showReactionPopup(bubble, messageKey, e.clientX, e.clientY);
+        });
+
+        // Mobile Long Press
+        bubble.addEventListener('touchstart', (e) => {
+            if (touchTimer) clearTimeout(touchTimer);
+            touchTimer = setTimeout(() => {
+                const touch = e.touches[0];
+                showReactionPopup(bubble, messageKey, touch.clientX, touch.clientY);
+            }, 600); // 600ms long press
+        }, { passive: true });
+
+        bubble.addEventListener('touchend', () => {
+            if (touchTimer) clearTimeout(touchTimer);
+        });
+
+        bubble.addEventListener('touchmove', () => {
+            if (touchTimer) clearTimeout(touchTimer);
+        });
+    }
+
+    function showReactionPopup(bubbleElement, messageKey, clientX, clientY) {
+        closeReactionPopup();
+
+        activeReactionMessageKey = messageKey;
+
+        const reactionBar = document.createElement('div');
+        reactionBar.className = 'chat-reaction-bar is-active';
+        reactionBar.id = 'dynamic-reaction-bar';
+
+        const emojis = ['❤️', '👍', '😂', '😮', '😢', '🙏'];
+        emojis.forEach(emoji => {
+            const span = document.createElement('span');
+            span.className = 'react-emoji';
+            span.textContent = emoji;
+            span.addEventListener('click', () => {
+                sendReaction(messageKey, emoji);
+                closeReactionPopup();
+            });
+            reactionBar.appendChild(span);
+        });
+
+        document.body.appendChild(reactionBar);
+
+        // Also show action bar (delete etc) below the emoji bar
+        showMsgActionBar(bubbleElement, messageKey);
+
+        const bubbleRect = bubbleElement.getBoundingClientRect();
+        const popupRect = reactionBar.getBoundingClientRect();
+
+        let left = bubbleRect.left + (bubbleRect.width / 2) - (popupRect.width / 2);
+        let top = bubbleRect.top - popupRect.height - 8;
+
+        if (left < 10) left = 10;
+        if (left + popupRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - popupRect.width - 10;
+        }
+
+        if (top < 10) {
+            top = bubbleRect.bottom + 8;
+        }
+
+        reactionBar.style.left = `${left}px`;
+        reactionBar.style.top = `${top}px`;
+
+        // Listen for click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', handleOutsideClickForReaction);
+        }, 50);
+    }
+
+    function closeReactionPopup() {
+        const existing = document.getElementById('dynamic-reaction-bar');
+        if (existing) existing.remove();
+        const actionBar = document.getElementById('dynamic-msg-action-bar');
+        if (actionBar) actionBar.remove();
+        document.removeEventListener('click', handleOutsideClickForReaction);
+        activeReactionMessageKey = null;
+    }
+
+    function handleOutsideClickForReaction(e) {
+        const popup = document.getElementById('dynamic-reaction-bar');
+        const actionBar = document.getElementById('dynamic-msg-action-bar');
+        const clickedInPopup = (popup && popup.contains(e.target)) || (actionBar && actionBar.contains(e.target));
+        if (!clickedInPopup) {
+            closeReactionPopup();
+        }
+    }
+
+    function showMsgActionBar(bubbleElement, messageKey) {
+        const isMe = bubbleElement.classList.contains('chat-bubble--out');
+
+        const actionBar = document.createElement('div');
+        actionBar.className = 'msg-action-bar';
+        actionBar.id = 'dynamic-msg-action-bar';
+
+        // Copy text (only for text bubbles)
+        const textNode = bubbleElement.childNodes[0];
+        if (textNode && textNode.nodeType === Node.TEXT_NODE && textNode.textContent.trim()) {
+            const copyBtn = document.createElement('button');
+            copyBtn.innerHTML = '📋 Kopyala';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(textNode.textContent.trim()).catch(() => {});
+                closeReactionPopup();
+            });
+            actionBar.appendChild(copyBtn);
+        }
+
+        // Delete for me only
+        const deleteForMeBtn = document.createElement('button');
+        deleteForMeBtn.innerHTML = '🙈 Bende Sil';
+        deleteForMeBtn.className = 'danger';
+        deleteForMeBtn.addEventListener('click', () => {
+            closeReactionPopup();
+            // Store locally hidden messages in sessionStorage
+            const hidden = JSON.parse(sessionStorage.getItem('af_hidden_msgs') || '[]');
+            if (!hidden.includes(messageKey)) hidden.push(messageKey);
+            sessionStorage.setItem('af_hidden_msgs', JSON.stringify(hidden));
+            const bubble = messagesEl.querySelector(`[data-key="${messageKey}"]`);
+            if (bubble) bubble.remove();
+        });
+        actionBar.appendChild(deleteForMeBtn);
+
+        // Delete for everyone (only own messages)
+        if (isMe) {
+            const deleteForAllBtn = document.createElement('button');
+            deleteForAllBtn.innerHTML = '🗑️ İkimizden Sil';
+            deleteForAllBtn.className = 'danger';
+            deleteForAllBtn.addEventListener('click', () => {
+                const confirmed = confirm('Bu mesajı ikimizden de silmek istediğine emin misin?');
+                if (confirmed) {
+                    db.ref(`${CHAT_PATH}/${messageKey}`).remove();
+                }
+                closeReactionPopup();
+            });
+            actionBar.appendChild(deleteForAllBtn);
+        }
+
+        document.body.appendChild(actionBar);
+
+        const reactionBar = document.getElementById('dynamic-reaction-bar');
+        let top, left;
+
+        if (reactionBar) {
+            const rbRect = reactionBar.getBoundingClientRect();
+            top = rbRect.bottom + 6;
+            left = rbRect.left;
+        } else {
+            const bubbleRect = bubbleElement.getBoundingClientRect();
+            top = bubbleRect.bottom + 6;
+            left = bubbleRect.left;
+        }
+
+        const abRect = actionBar.getBoundingClientRect();
+        if (left + abRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - abRect.width - 10;
+        }
+        if (left < 10) left = 10;
+
+        actionBar.style.left = `${left}px`;
+        actionBar.style.top = `${top}px`;
+    }
+
+    function sendReaction(messageKey, emoji) {
+        if (!firebaseReady) return;
+        const reactionRef = db.ref(`${CHAT_PATH}/${messageKey}/reactions/${MY_NAME}`);
+        reactionRef.once('value').then(snap => {
+            if (snap.exists() && snap.val() === emoji) {
+                reactionRef.remove();
+            } else {
+                reactionRef.set(emoji);
+            }
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // PRESENCE SYSTEM
+    // ──────────────────────────────────────────────────────────
+    function setupPresence() {
+        if (!firebaseReady) return;
+
+        const myPresenceRef = db.ref(`angelface_chat/presence/${MY_NAME}`);
+        const targetPresenceRef = db.ref(`angelface_chat/presence/${TARGET_NAME}`);
+        const connectedRef = db.ref(".info/connected");
+
+        connectedRef.on("value", (snap) => {
+            if (snap.val() === true) {
+                myPresenceRef.onDisconnect().set({
+                    online: false,
+                    lastSeen: firebase.database.ServerValue.TIMESTAMP
+                }).then(() => {
+                    myPresenceRef.set({
+                        online: true,
+                        lastSeen: firebase.database.ServerValue.TIMESTAMP
+                    });
+                });
+            }
+        });
+
+        // Listen to target's presence
+        targetPresenceRef.on("value", (snap) => {
+            if (snap.exists()) {
+                const data = snap.val();
+                if (data.online) {
+                    statusEl.textContent = 'çevrimiçi ✓';
+                    statusEl.style.color = '#4ade80';
+                } else {
+                    if (data.lastSeen) {
+                        statusEl.textContent = `son görülme: ${formatLastSeen(data.lastSeen)}`;
+                    } else {
+                        statusEl.textContent = 'çevrimdışı';
+                    }
+                    statusEl.style.color = 'rgba(255,255,255,0.4)';
+                }
+            } else {
+                statusEl.textContent = 'çevrimdışı';
+                statusEl.style.color = 'rgba(255,255,255,0.4)';
+            }
+        });
+    }
+
+    function formatLastSeen(ts) {
+        const d = new Date(ts);
+        const today = new Date();
+        const timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+        
+        if (d.toDateString() === today.toDateString()) {
+            return `bugün ${timeStr}`;
+        }
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        if (d.toDateString() === yesterday.toDateString()) {
+            return `dün ${timeStr}`;
+        }
+        return `${d.getDate()} ${d.toLocaleDateString('tr-TR', { month: 'short' })} ${timeStr}`;
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // RENDER A MESSAGE BUBBLE
+    // ──────────────────────────────────────────────────────────
     function renderMessage(msg, key) {
+        // Single-sided chat history check
+        const clearTs = myProfileData.clearChatTs || 0;
+        if (msg.ts <= clearTs) return;
+
+        // Check locally hidden messages
+        const hidden = JSON.parse(sessionStorage.getItem('af_hidden_msgs') || '[]');
+        if (hidden.includes(key)) return;
+
         const isMe = msg.sender === MY_NAME;
         const bubbleClass = isMe ? 'chat-bubble--out' : 'chat-bubble--in';
 
@@ -1015,7 +1273,43 @@ window.bootChatEngine = function () {
             bubble.innerHTML = `<audio src="${msg.url}" class="chat-bubble__audio" controls></audio>${metaHtml}`;
         }
 
+        // Render emoji reactions if they exist
+        const reactions = msg.reactions || {};
+        const reactionKeys = Object.keys(reactions);
+        if (reactionKeys.length > 0) {
+            bubble.classList.add('has-reactions');
+            const reactionsContainer = document.createElement('div');
+            reactionsContainer.className = 'chat-msg__reactions';
+            
+            const uniqueEmojis = [];
+            reactionKeys.forEach(user => {
+                const em = reactions[user];
+                if (!uniqueEmojis.includes(em)) {
+                    uniqueEmojis.push(em);
+                }
+            });
+            
+            uniqueEmojis.forEach(em => {
+                const span = document.createElement('span');
+                span.className = 'reaction-item';
+                span.textContent = em;
+                reactionsContainer.appendChild(span);
+            });
+
+            reactionsContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (reactions[MY_NAME]) {
+                    db.ref(`${CHAT_PATH}/${key}/reactions/${MY_NAME}`).remove();
+                }
+            });
+
+            bubble.appendChild(reactionsContainer);
+        }
+
         messagesEl.appendChild(bubble);
+
+        // Bind emoji reactions triggers
+        bindBubbleReactionEvents(bubble, key);
 
         // Unread badge when modal is closed
         if (!isOpen && !isMe) {
@@ -1038,7 +1332,7 @@ window.bootChatEngine = function () {
     // LISTEN FOR MESSAGES (Realtime)
     // ──────────────────────────────────────────────────────────
     function startListening() {
-        const ref = db.ref(CHAT_PATH).orderByChild('ts').limitToLast(200);
+        const ref = db.ref(CHAT_PATH).orderByChild('ts').limitToLast(5000);
 
         // Load all existing messages first
         ref.once('value', (snap) => {
@@ -1048,8 +1342,6 @@ window.bootChatEngine = function () {
                 renderMessage(child.val(), child.key);
             });
             scrollToBottom();
-            statusEl.textContent = 'çevrimiçi ✓';
-            statusEl.style.color = '#4ade80';
         });
 
         // Then listen for new ones
@@ -1068,13 +1360,55 @@ window.bootChatEngine = function () {
             }
         });
 
-        // Listen for updates (like seen status changing)
+        // Listen for updates (like seen status changing or reactions)
         ref.on('child_changed', (snap) => {
             const val = snap.val();
-            const bubble = document.querySelector(`.chat-bubble[data-key="${snap.key}"]`);
-            if (bubble && val.seen) {
+            const bubble = messagesEl.querySelector(`.chat-bubble[data-key="${snap.key}"]`);
+            if (!bubble) return;
+
+            // Update seen status
+            if (val.seen) {
                 const statusEl = bubble.querySelector('.chat-msg__status');
                 if (statusEl) statusEl.classList.add('is-seen');
+            }
+
+            // Update reactions dynamically
+            const existingReactions = bubble.querySelector('.chat-msg__reactions');
+            if (existingReactions) {
+                existingReactions.remove();
+                bubble.classList.remove('has-reactions');
+            }
+
+            const reactions = val.reactions || {};
+            const reactionKeys = Object.keys(reactions);
+            if (reactionKeys.length > 0) {
+                bubble.classList.add('has-reactions');
+                const reactionsContainer = document.createElement('div');
+                reactionsContainer.className = 'chat-msg__reactions';
+                
+                const uniqueEmojis = [];
+                reactionKeys.forEach(user => {
+                    const em = reactions[user];
+                    if (!uniqueEmojis.includes(em)) {
+                        uniqueEmojis.push(em);
+                    }
+                });
+                
+                uniqueEmojis.forEach(em => {
+                    const span = document.createElement('span');
+                    span.className = 'reaction-item';
+                    span.textContent = em;
+                    reactionsContainer.appendChild(span);
+                });
+
+                reactionsContainer.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (reactions[MY_NAME]) {
+                        db.ref(`${CHAT_PATH}/${snap.key}/reactions/${MY_NAME}`).remove();
+                    }
+                });
+
+                bubble.appendChild(reactionsContainer);
             }
         });
 
@@ -1174,10 +1508,51 @@ window.bootChatEngine = function () {
     let tempAvatarBlob = null;
 
     function setupProfiles() {
-        // Listen to our own profile
+        // Listen to our own profile (realtime changes)
         db.ref(`${PROFILE_PATH}/${MY_NAME}`).on('value', snap => {
             if (snap.exists()) {
-                myProfileData = snap.val();
+                const newData = snap.val();
+                const newClearTs = newData.clearChatTs || 0;
+                const oldClearTs = myProfileData.clearChatTs || 0;
+
+                myProfileData = newData;
+
+                // Only re-render if clearChatTs actually increased (not on first load)
+                // We check that oldClearTs > 0 OR newClearTs is genuinely different
+                if (newClearTs > 0 && newClearTs > oldClearTs) {
+                    messagesEl.innerHTML = '<div class="chat-welcome"><div class="chat-welcome__icon">💌</div><p>Sana özel şifreli mesajlaşma kanalı.</p><p>Sadece ikimiz için... ❤️</p></div>';
+                    lastDateStr = '';
+
+                    db.ref(CHAT_PATH).orderByChild('ts').limitToLast(5000).once('value', messagesSnap => {
+                        messagesEl.innerHTML = '<div class="chat-welcome"><div class="chat-welcome__icon">💌</div><p>Sana özel şifreli mesajlaşma kanalı.</p><p>Sadece ikimiz için... ❤️</p></div>';
+                        lastDateStr = '';
+                        messagesSnap.forEach(child => {
+                            const msg = child.val();
+                            if (msg.ts > newClearTs) {
+                                renderMessage(msg, child.key);
+                            }
+                        });
+                        scrollToBottom();
+                    });
+                }
+
+                // Keep inputs in sync when modal is opened and user is not editing them
+                if (profileNameInput && document.activeElement !== profileNameInput) {
+                    profileNameInput.value = myProfileData.displayName || '';
+                }
+                const targetNameInput = document.getElementById('profile-target-name');
+                if (targetNameInput && document.activeElement !== targetNameInput) {
+                    targetNameInput.value = myProfileData.targetNickName || '';
+                }
+
+                // Refresh header display name
+                db.ref(`${PROFILE_PATH}/${TARGET_NAME}`).once('value', targetSnap => {
+                    const data = targetSnap.val() || {};
+                    const displayName = myProfileData.targetNickName || data.displayName || (TARGET_NAME === 'irem' ? 'İrem' : 'Canım');
+                    if (chatHeaderName) {
+                        chatHeaderName.textContent = `${displayName} 💜`;
+                    }
+                });
             } else {
                 db.ref(`${PROFILE_PATH}/${MY_NAME}`).set(myProfileData);
             }
@@ -1187,8 +1562,9 @@ window.bootChatEngine = function () {
         db.ref(`${PROFILE_PATH}/${TARGET_NAME}`).on('value', snap => {
             if (snap.exists()) {
                 const data = snap.val();
-                if (chatHeaderName && data.displayName) {
-                    chatHeaderName.textContent = `${data.displayName} 💜`;
+                const displayName = myProfileData.targetNickName || data.displayName || (TARGET_NAME === 'irem' ? 'İrem' : 'Canım');
+                if (chatHeaderName) {
+                    chatHeaderName.textContent = `${displayName} 💜`;
                 }
                 if (chatHeaderAvatar) {
                     if (data.avatarUrl) {
@@ -1204,6 +1580,10 @@ window.bootChatEngine = function () {
         if (profileEditBtn) {
             profileEditBtn.addEventListener('click', () => {
                 profileNameInput.value = myProfileData.displayName || '';
+                const targetNameInput = document.getElementById('profile-target-name');
+                if (targetNameInput) {
+                    targetNameInput.value = myProfileData.targetNickName || '';
+                }
                 if (myProfileData.avatarUrl) {
                     profilePreview.innerHTML = `<img src="${myProfileData.avatarUrl}">`;
                 } else {
@@ -1247,6 +1627,9 @@ window.bootChatEngine = function () {
                     return;
                 }
 
+                const targetNameInput = document.getElementById('profile-target-name');
+                const newTargetName = targetNameInput ? targetNameInput.value.trim() : '';
+
                 profileSaveBtn.disabled = true;
                 profileSaveBtn.textContent = 'Kaydediliyor...';
 
@@ -1261,7 +1644,9 @@ window.bootChatEngine = function () {
 
                     await db.ref(`${PROFILE_PATH}/${MY_NAME}`).set({
                         displayName: newName,
-                        avatarUrl: avatarUrl
+                        avatarUrl: avatarUrl,
+                        targetNickName: newTargetName,
+                        clearChatTs: myProfileData.clearChatTs || 0
                     });
 
                     profileModal.classList.remove('is-active');
@@ -1275,21 +1660,24 @@ window.bootChatEngine = function () {
             });
         }
 
-        // Sohbet Geçmişini Temizle
+        // Sohbet Geçmişini Temizle (Tek Taraflı / Single-Sided)
         const clearChatBtn = document.getElementById('profile-clear-chat-btn');
         if (clearChatBtn) {
             clearChatBtn.addEventListener('click', () => {
-                const confirmed = confirm('Sohbet geçmişini tamamen silmek istediğine emin misin? Bu işlem geri alınamaz ve tüm mesajlar ikimiz için de silinecektir! ❤️');
+                const confirmed = confirm('Sohbet geçmişini silmek istediğine emin misin? Bu işlem senin için sohbeti temizler ancak karşı tarafta mesajlar kalmaya devam eder! ❤️');
                 if (confirmed) {
-                    db.ref(CHAT_PATH).remove()
-                        .then(() => {
-                            alert('Tüm sohbet geçmişi başarıyla temizlendi! ✨');
-                            profileModal.classList.remove('is-active');
-                        })
-                        .catch((err) => {
-                            console.error('Sohbet temizleme hatası:', err);
-                            alert('Sohbet temizlenirken bir hata oluştu.');
-                        });
+                    const clearTs = Date.now();
+                    db.ref(`${PROFILE_PATH}/${MY_NAME}`).update({
+                        clearChatTs: clearTs
+                    })
+                    .then(() => {
+                        alert('Sohbet geçmişi başarıyla temizlendi! ✨');
+                        profileModal.classList.remove('is-active');
+                    })
+                    .catch((err) => {
+                        console.error('Sohbet temizleme hatası:', err);
+                        alert('Sohbet temizlenirken bir hata oluştu.');
+                    });
                 }
             });
         }
@@ -1474,8 +1862,21 @@ window.bootChatEngine = function () {
     // ──────────────────────────────────────────────────────────
     const ready = initFirebase();
     if (ready) {
-        startListening();
-        setupProfiles();
+        // First load our own profile to get clearChatTs and targetNickName
+        db.ref(`${PROFILE_PATH}/${MY_NAME}`).once('value').then(snap => {
+            if (snap.exists()) {
+                myProfileData = snap.val();
+            } else {
+                db.ref(`${PROFILE_PATH}/${MY_NAME}`).set(myProfileData);
+            }
+            
+            // Now start listening to messages and presence tracking
+            startListening();
+            setupPresence();
+            
+            // Setup realtime listeners for profile updates
+            setupProfiles();
+        });
     }
 
 };
