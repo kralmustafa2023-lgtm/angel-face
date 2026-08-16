@@ -856,11 +856,11 @@ window.bootChatEngine = function () {
     let db, storage, firebaseReady = false;
 
     function initFirebase() {
+        const sEl = document.getElementById('chat-status');
         try {
-            // Show connecting immediately
-            if (statusEl) {
-                statusEl.textContent = 'bağlanıyor...';
-                statusEl.style.color = 'rgba(255,255,255,0.4)';
+            if (sEl) {
+                sEl.textContent = 'bağlanıyor...';
+                sEl.style.color = 'rgba(255,255,255,0.4)';
             }
             if (!firebase.apps.length) {
                 firebase.initializeApp(FIREBASE_CONFIG);
@@ -868,17 +868,16 @@ window.bootChatEngine = function () {
             db = firebase.database();
             storage = firebase.storage();
             firebaseReady = true;
-            // Show connected immediately
-            if (statusEl) {
-                statusEl.textContent = 'çevrimiçi ✓';
-                statusEl.style.color = '#4ade80';
+            if (sEl) {
+                sEl.textContent = 'çevrimiçi ✓';
+                sEl.style.color = '#4ade80';
             }
             return true;
         } catch (e) {
             console.error('Firebase başlatma hatası:', e);
-            if (statusEl) {
-                statusEl.textContent = 'bağlantı hatası';
-                statusEl.style.color = '#ff4d4d';
+            if (sEl) {
+                sEl.textContent = 'bağlantı hatası';
+                sEl.style.color = '#ff4d4d';
             }
             return false;
         }
@@ -1199,13 +1198,12 @@ window.bootChatEngine = function () {
         }
     }
 
-    const myTypingRef = db.ref(`angelface_chat/typing/${MY_NAME}`);
-    const targetTypingRef = db.ref(`angelface_chat/typing/${TARGET_NAME}`);
     let typingTimeout = null;
     let amITyping = false;
 
     function setMyTyping(typing) {
-        if (!firebaseReady) return;
+        if (!firebaseReady || !db) return;
+        const myTypingRef = db.ref(`angelface_chat/typing/${MY_NAME}`);
         if (typing) {
             if (!amITyping) {
                 amITyping = true;
@@ -1242,10 +1240,12 @@ window.bootChatEngine = function () {
     }
 
     function setupPresence() {
-        if (!firebaseReady) return;
+        if (!firebaseReady || !db) return;
 
         const myPresenceRef = db.ref(`angelface_chat/presence/${MY_NAME}`);
         const targetPresenceRef = db.ref(`angelface_chat/presence/${TARGET_NAME}`);
+        const myTypingRef = db.ref(`angelface_chat/typing/${MY_NAME}`);
+        const targetTypingRef = db.ref(`angelface_chat/typing/${TARGET_NAME}`);
         const connectedRef = db.ref(".info/connected");
 
         myTypingRef.onDisconnect().remove();
