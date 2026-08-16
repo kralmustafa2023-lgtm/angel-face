@@ -1195,35 +1195,42 @@ window.bootChatEngine = function () {
     const myTypingRef = db.ref(`angelface_chat/typing/${MY_NAME}`);
     const targetTypingRef = db.ref(`angelface_chat/typing/${TARGET_NAME}`);
     let typingTimeout = null;
+    let amITyping = false;
 
     function setMyTyping(typing) {
         if (!firebaseReady) return;
         if (typing) {
-            myTypingRef.set({ isTyping: true, ts: firebase.database.ServerValue.TIMESTAMP });
+            if (!amITyping) {
+                amITyping = true;
+                myTypingRef.set({ isTyping: true, ts: firebase.database.ServerValue.TIMESTAMP });
+            }
         } else {
-            myTypingRef.remove();
+            if (amITyping) {
+                amITyping = false;
+                myTypingRef.remove();
+            }
         }
     }
 
-    // Typing Input Event Listeners
+    // Typing Input Event Listeners — Instant (Saliseler içinde)
     if (textInput) {
         textInput.addEventListener('input', () => {
-            const val = textInput.value.trim();
-            if (val.length > 0) {
-                setMyTyping(true);
+            const val = textInput.value;
+            if (val.trim().length > 0) {
+                setMyTyping(true); // Anında (0ms) Firebase'e iletilir
                 if (typingTimeout) clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
-                    setMyTyping(false);
-                }, 2500);
+                    setMyTyping(false); // 800ms duraksamada anında kapanır
+                }, 800);
             } else {
-                setMyTyping(false);
                 if (typingTimeout) clearTimeout(typingTimeout);
+                setMyTyping(false); // Yazı silindiği an (0ms) kapanır
             }
         });
 
         textInput.addEventListener('blur', () => {
-            setMyTyping(false);
             if (typingTimeout) clearTimeout(typingTimeout);
+            setMyTyping(false);
         });
     }
 
