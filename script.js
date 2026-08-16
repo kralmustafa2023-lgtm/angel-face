@@ -824,8 +824,6 @@
 
 window.bootChatEngine = function () {
     'use strict';
-    if (window._chatEngineRunning) return;
-    window._chatEngineRunning = true;
 
     // ──────────────────────────────────────────────────────────
     // FIREBASE CONFIG — Buraya kendi Firebase config'ini yapıştır!
@@ -859,11 +857,10 @@ window.bootChatEngine = function () {
 
     function initFirebase() {
         try {
-            if (FIREBASE_CONFIG.apiKey === 'BURAYA_API_KEY') {
-                console.warn('⚠️ Firebase config henüz girilmemiş. Lütfen script.js içine kendi config bilgilerini yapıştır.');
-                document.getElementById('chat-status').textContent = 'bağlantı ayarlanıyor...';
-                document.getElementById('chat-status').style.color = '#facc15';
-                return false;
+            // Show connecting immediately
+            if (statusEl) {
+                statusEl.textContent = 'bağlanıyor...';
+                statusEl.style.color = 'rgba(255,255,255,0.4)';
             }
             if (!firebase.apps.length) {
                 firebase.initializeApp(FIREBASE_CONFIG);
@@ -871,9 +868,18 @@ window.bootChatEngine = function () {
             db = firebase.database();
             storage = firebase.storage();
             firebaseReady = true;
+            // Show connected immediately
+            if (statusEl) {
+                statusEl.textContent = 'çevrimiçi ✓';
+                statusEl.style.color = '#4ade80';
+            }
             return true;
         } catch (e) {
             console.error('Firebase başlatma hatası:', e);
+            if (statusEl) {
+                statusEl.textContent = 'bağlantı hatası';
+                statusEl.style.color = '#ff4d4d';
+            }
             return false;
         }
     }
@@ -1970,8 +1976,7 @@ window.bootChatEngine = function () {
 
 window.bootWebRTCEngine = function() {
     'use strict';
-    if (window._webrtcEngineRunning) return;
-    window._webrtcEngineRunning = true;
+
 
     // Get Firebase from window (initialized in previous IIFE)
     const db = window.firebase ? window.firebase.database() : null;
@@ -2400,20 +2405,3 @@ window.bootWebRTCEngine = function() {
     listenForIncomingCalls();
 
 };
-
-// ──────────────────────────────────────────────────────────
-// AUTO-BOOT ENGINES IMMEDIATELY ON PAGE LOAD
-// ──────────────────────────────────────────────────────────
-(function autoBootEngines() {
-    function boot() {
-        if (typeof window.bootChatEngine === 'function') window.bootChatEngine();
-        if (typeof window.bootWebRTCEngine === 'function') window.bootWebRTCEngine();
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', boot);
-    } else {
-        boot();
-    }
-})();
-
-
