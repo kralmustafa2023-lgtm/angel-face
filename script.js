@@ -1158,14 +1158,83 @@ window.bootChatEngine = function () {
     }
 
     // ──────────────────────────────────────────────────────────
-    // PRESENCE SYSTEM
+    // PRESENCE & ROMANTIC TYPING SYSTEM
     // ──────────────────────────────────────────────────────────
+    let isTargetTyping = false;
+    let targetPresenceData = { online: false, lastSeen: 0 };
+
+    function renderStatusDisplay() {
+        if (!statusEl) return;
+
+        if (isTargetTyping) {
+            statusEl.innerHTML = `
+                <span class="chat-typing">
+                    <span class="chat-typing__text">yazıyor</span>
+                    <span class="chat-typing__dots">
+                        <span class="dot-1">.</span><span class="dot-2">.</span><span class="dot-3">.</span>
+                    </span>
+                    <span class="chat-typing__heart">💖</span>
+                </span>
+            `;
+            return;
+        }
+
+        if (targetPresenceData.online) {
+            statusEl.textContent = 'çevrimiçi ✓';
+            statusEl.style.color = '#4ade80';
+        } else {
+            if (targetPresenceData.lastSeen) {
+                statusEl.textContent = `son görülme: ${formatLastSeen(targetPresenceData.lastSeen)}`;
+            } else {
+                statusEl.textContent = 'çevrimdışı';
+            }
+            statusEl.style.color = 'rgba(255,255,255,0.4)';
+        }
+    }
+
+    const myTypingRef = db.ref(`angelface_chat/typing/${MY_NAME}`);
+    const targetTypingRef = db.ref(`angelface_chat/typing/${TARGET_NAME}`);
+    let typingTimeout = null;
+
+    function setMyTyping(typing) {
+        if (!firebaseReady) return;
+        if (typing) {
+            myTypingRef.set({ isTyping: true, ts: firebase.database.ServerValue.TIMESTAMP });
+        } else {
+            myTypingRef.remove();
+        }
+    }
+
+    // Typing Input Event Listeners
+    if (textInput) {
+        textInput.addEventListener('input', () => {
+            const val = textInput.value.trim();
+            if (val.length > 0) {
+                setMyTyping(true);
+                if (typingTimeout) clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    setMyTyping(false);
+                }, 2500);
+            } else {
+                setMyTyping(false);
+                if (typingTimeout) clearTimeout(typingTimeout);
+            }
+        });
+
+        textInput.addEventListener('blur', () => {
+            setMyTyping(false);
+            if (typingTimeout) clearTimeout(typingTimeout);
+        });
+    }
+
     function setupPresence() {
         if (!firebaseReady) return;
 
         const myPresenceRef = db.ref(`angelface_chat/presence/${MY_NAME}`);
         const targetPresenceRef = db.ref(`angelface_chat/presence/${TARGET_NAME}`);
         const connectedRef = db.ref(".info/connected");
+
+        myTypingRef.onDisconnect().remove();
 
         connectedRef.on("value", (snap) => {
             if (snap.val() === true) {
@@ -1185,21 +1254,25 @@ window.bootChatEngine = function () {
         targetPresenceRef.on("value", (snap) => {
             if (snap.exists()) {
                 const data = snap.val();
-                if (data.online) {
-                    statusEl.textContent = 'çevrimiçi ✓';
-                    statusEl.style.color = '#4ade80';
-                } else {
-                    if (data.lastSeen) {
-                        statusEl.textContent = `son görülme: ${formatLastSeen(data.lastSeen)}`;
-                    } else {
-                        statusEl.textContent = 'çevrimdışı';
-                    }
-                    statusEl.style.color = 'rgba(255,255,255,0.4)';
-                }
+                targetPresenceData = {
+                    online: !!data.online,
+                    lastSeen: data.lastSeen || 0
+                };
             } else {
-                statusEl.textContent = 'çevrimdışı';
-                statusEl.style.color = 'rgba(255,255,255,0.4)';
+                targetPresenceData = { online: false, lastSeen: 0 };
             }
+            renderStatusDisplay();
+        });
+
+        // Listen to target's typing status
+        targetTypingRef.on("value", (snap) => {
+            if (snap.exists()) {
+                const data = snap.val();
+                isTargetTyping = !!data.isTyping;
+            } else {
+                isTargetTyping = false;
+            }
+            renderStatusDisplay();
         });
     }
 
@@ -1437,6 +1510,8 @@ window.bootChatEngine = function () {
         const text = textInput.value.trim();
         if (!text) return;
         textInput.value = '';
+        setMyTyping(false);
+        if (typingTimeout) clearTimeout(typingTimeout);
 
         db.ref(CHAT_PATH).push({
             type: 'text',

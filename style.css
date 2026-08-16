@@ -3005,3 +3005,54 @@ video.chat-bubble__media {
     background: rgba(255,59,48,0.12);
 }
 
+/* ============================================================
+   ROMANTIC TYPING INDICATOR
+   ============================================================ */
+.chat-typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 500;
+    color: #ff6584;
+    text-shadow: 0 0 10px rgba(255, 101, 132, 0.4);
+    animation: typingGlow 2s ease-in-out infinite alternate;
+}
+.chat-typing__text {
+    letter-spacing: 0.3px;
+}
+.chat-typing__dots {
+    display: inline-flex;
+}
+.chat-typing__dots span {
+    display: inline-block;
+    font-weight: bold;
+    font-size: 0.95rem;
+    line-height: 0.8;
+    animation: dotPulse 1.4s infinite ease-in-out both;
+}
+.chat-typing__dots .dot-1 { animation-delay: 0s; }
+.chat-typing__dots .dot-2 { animation-delay: 0.2s; }
+.chat-typing__dots .dot-3 { animation-delay: 0.4s; }
+
+.chat-typing__heart {
+    font-size: 0.78rem;
+    margin-left: 3px;
+    animation: typingHeartFloat 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes typingGlow {
+    0% { color: #ff6584; text-shadow: 0 0 8px rgba(255, 101, 132, 0.3); }
+    100% { color: #ff85a2; text-shadow: 0 0 14px rgba(255, 133, 162, 0.7); }
+}
+
+@keyframes dotPulse {
+    0%, 80%, 100% { transform: scale(0.7) translateY(0); opacity: 0.3; }
+    40% { transform: scale(1.4) translateY(-2px); opacity: 1; color: #ff3366; }
+}
+
+@keyframes typingHeartFloat {
+    0% { transform: translateY(0) scale(1); }
+    100% { transform: translateY(-3px) scale(1.25); }
+}
+
+
