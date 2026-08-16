@@ -824,7 +824,8 @@
 
 window.bootChatEngine = function () {
     'use strict';
-    'use strict';
+    if (window._chatEngineRunning) return;
+    window._chatEngineRunning = true;
 
     // ──────────────────────────────────────────────────────────
     // FIREBASE CONFIG — Buraya kendi Firebase config'ini yapıştır!
@@ -1969,6 +1970,8 @@ window.bootChatEngine = function () {
 
 window.bootWebRTCEngine = function() {
     'use strict';
+    if (window._webrtcEngineRunning) return;
+    window._webrtcEngineRunning = true;
 
     // Get Firebase from window (initialized in previous IIFE)
     const db = window.firebase ? window.firebase.database() : null;
@@ -2397,4 +2400,20 @@ window.bootWebRTCEngine = function() {
     listenForIncomingCalls();
 
 };
+
+// ──────────────────────────────────────────────────────────
+// AUTO-BOOT ENGINES IMMEDIATELY ON PAGE LOAD
+// ──────────────────────────────────────────────────────────
+(function autoBootEngines() {
+    function boot() {
+        if (typeof window.bootChatEngine === 'function') window.bootChatEngine();
+        if (typeof window.bootWebRTCEngine === 'function') window.bootWebRTCEngine();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+})();
+
 
